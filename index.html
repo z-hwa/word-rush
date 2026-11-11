@@ -1,0 +1,884 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<script src="https://accounts.google.com/gsi/client" async></script>
+<style>body{margin:0}:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);box-sizing:border-box}</style>
+</head>
+<body>
+<title>Word Rush 詞彙衝刺</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Atkinson+Hyperlegible:wght@400;700&family=Noto+Sans+TC:wght@500;700&display=swap">
+<style>
+/* Layout: one-screen arcade app on a night study desk; the index cards are the only light objects on it */
+:root {
+  --desk: #141c33;
+  --desk-2: #1c2645;
+  --line: #2d3b66;
+  --fg: #eef1fa;
+  --muted: #95a1c6;
+  --card: #fbf7ee;
+  --card-ink: #1b2232;
+  --redline: #e0786f;
+  --fuse: #ffb347;
+  --good: #5fd3a6;
+  --bad: #ff6b6b;
+  --f-display: 'Bricolage Grotesque', 'Noto Sans TC', system-ui, sans-serif;
+  --f-en: 'Atkinson Hyperlegible', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --f-zh: 'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei', sans-serif;
+  color-scheme: dark;
+}
+[hidden] { display: none !important; }
+html, body { height: 100%; }
+body {
+  background: var(--desk);
+  color: var(--fg);
+  font-family: var(--f-en), var(--f-zh);
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+}
+#app {
+  height: 100%;
+  max-width: 560px;
+  margin: 0 auto;
+  box-sizing: border-box;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 12px;
+  display: flex;
+  flex-direction: column;
+}
+.screen { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 14px; }
+.scroll { overflow-y: auto; }
+button { font: inherit; color: inherit; cursor: pointer; }
+button:focus-visible { outline: 3px solid var(--fuse); outline-offset: 2px; }
+
+/* ── shared bits ── */
+.topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.brand { font-family: var(--f-display); font-weight: 800; font-size: 1.6rem; letter-spacing: -0.02em; line-height: 1; }
+.brand small { display: block; font-family: var(--f-zh); font-weight: 500; font-size: 0.8rem; color: var(--muted); letter-spacing: 0.2em; margin-top: 4px; }
+.coins { display: inline-flex; align-items: center; gap: 6px; font-family: var(--f-display); font-weight: 800; font-size: 1.1rem; font-variant-numeric: tabular-nums; background: var(--desk-2); border: 1px solid var(--line); padding: 6px 12px; border-radius: 999px; }
+.coins i { width: 14px; height: 14px; border-radius: 50%; background: var(--fuse); box-shadow: inset 0 -2px 0 #c97c12; }
+.label { font-size: 0.72rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); font-family: var(--f-zh), var(--f-en); }
+.btn { border: 1px solid var(--line); background: var(--desk-2); border-radius: 10px; padding: 10px 14px; font-weight: 700; }
+.btn:hover { border-color: var(--muted); }
+.btn.primary { background: var(--fuse); color: #2a1a00; border-color: var(--fuse); }
+.btn.primary:hover { filter: brightness(1.06); }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip { border: 1px solid var(--line); background: transparent; border-radius: 999px; padding: 6px 12px; font-size: 0.85rem; font-family: var(--f-zh), var(--f-en); }
+.chip[aria-pressed="true"] { background: var(--fg); color: var(--desk); border-color: var(--fg); font-weight: 700; }
+.note { color: var(--muted); font-size: 0.85rem; line-height: 1.6; font-family: var(--f-zh), var(--f-en); }
+
+/* ── home ── */
+.levels { display: flex; flex-direction: column; gap: 12px; }
+.level {
+  position: relative; text-align: left; border: 0; border-radius: 6px; padding: 16px 16px 14px;
+  background: var(--card); color: var(--card-ink);
+  background-image: linear-gradient(var(--redline), var(--redline));
+  background-size: 100% 2px; background-position: 0 30px; background-repeat: no-repeat;
+  box-shadow: 0 2px 0 #d8d1c0, 0 10px 24px rgba(0,0,0,.35);
+  display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; align-items: end;
+  transition: transform .15s;
+}
+.level:hover:not(:disabled) { transform: translateY(-2px) rotate(-0.3deg); }
+.level .lid { font-family: var(--f-display); font-weight: 800; font-size: 0.8rem; color: var(--redline); letter-spacing: 0.08em; align-self: start; }
+.level .lname { grid-column: 1 / -1; font-family: var(--f-zh); font-weight: 700; font-size: 1.35rem; margin-top: 6px; }
+.level .meta { font-size: 0.82rem; color: #5b6478; font-family: var(--f-zh), var(--f-en); font-variant-numeric: tabular-nums; }
+.level .tier { justify-self: end; font-family: var(--f-display); font-weight: 800; font-size: 0.85rem; background: var(--card-ink); color: var(--card); padding: 3px 8px; border-radius: 4px; align-self: start; }
+.mbar { grid-column: 1 / -1; height: 6px; border-radius: 3px; background: #e6dfcf; overflow: hidden; }
+.mbar b { display: block; height: 100%; background: #2f8f6d; }
+.level:disabled { opacity: 0.45; cursor: not-allowed; filter: grayscale(0.6); }
+.panel { background: var(--desk-2); border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+.confirm { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+/* ── game ── */
+.hud { display: flex; flex-direction: column; gap: 8px; }
+.hud-top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.score { font-family: var(--f-display); font-weight: 800; font-size: 2rem; line-height: 1; font-variant-numeric: tabular-nums; }
+.score small { font-size: 0.8rem; color: var(--muted); font-weight: 600; margin-left: 6px; font-family: var(--f-zh), var(--f-en); }
+.hud-right { display: flex; align-items: center; gap: 10px; }
+.wave { font-family: var(--f-zh); color: var(--muted); font-size: 0.85rem; }
+.quit { background: none; border: 1px solid var(--line); border-radius: 8px; padding: 4px 10px; font-size: 0.8rem; color: var(--muted); font-family: var(--f-zh); }
+.fuse { position: relative; height: 22px; border-radius: 11px; background: var(--desk-2); border: 1px solid var(--line); overflow: hidden; }
+.fuse b { position: absolute; inset: 0 auto 0 0; background: var(--good); border-radius: 11px; transition: background-color .3s; }
+.fuse.mid b { background: var(--fuse); }
+.fuse.low b { background: var(--bad); animation: pulse .5s infinite alternate; }
+.fuse span { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); font-family: var(--f-display); font-weight: 800; font-size: 0.85rem; font-variant-numeric: tabular-nums; color: var(--fg); text-shadow: 0 1px 2px rgba(0,0,0,.6); }
+.fuse .goal { position: absolute; top: 0; bottom: 0; width: 0; }
+@keyframes pulse { to { opacity: .55; } }
+.status { display: flex; justify-content: space-between; align-items: center; min-height: 26px; gap: 8px; }
+.phase { font-family: var(--f-zh); font-size: 0.9rem; color: var(--muted); }
+.phase.go { color: var(--fg); }
+.combo { font-family: var(--f-display); font-weight: 800; color: var(--fuse); font-size: 1.05rem; opacity: 0; transform: scale(.8); transition: opacity .15s, transform .15s; }
+.combo.on { opacity: 1; transform: scale(1); }
+.combo.bump { animation: bump .25s; }
+@keyframes bump { 50% { transform: scale(1.25); } }
+.goalbar { height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; }
+.goalbar b { display: block; height: 100%; background: var(--fg); transition: width .2s; }
+.goalbar.met b { background: var(--good); }
+.preview { height: 3px; border-radius: 2px; background: transparent; overflow: hidden; }
+.preview b { display: block; height: 100%; background: var(--fuse); width: 0; }
+.board { position: relative; flex: 1; min-height: 300px; }
+.card {
+  position: absolute; box-sizing: border-box; border: 0; border-radius: 6px; padding: 6px 8px;
+  background-color: var(--tint, var(--card)); color: var(--card-ink);
+  background-image: linear-gradient(var(--redline), var(--redline));
+  background-size: 100% 2px; background-position: 0 9px; background-repeat: no-repeat;
+  box-shadow: 0 2px 0 rgba(0,0,0,.18), 0 6px 14px rgba(0,0,0,.3);
+  display: flex; align-items: center; justify-content: center; text-align: center;
+  font-size: 1.05rem; line-height: 1.2; overflow-wrap: anywhere;
+  transition: left .32s cubic-bezier(.3,.8,.3,1), top .32s cubic-bezier(.3,.8,.3,1), width .32s, height .32s, background-color .35s, transform .15s, opacity .25s;
+  touch-action: manipulation; user-select: none;
+}
+.card.en { font-family: var(--f-en); font-weight: 700; }
+.card.zh { font-family: var(--f-zh); font-weight: 700; }
+.card.long { font-size: 0.9rem; }
+.card.neutral { --tint: var(--card); }
+.card.sel { transform: translateY(-4px) scale(1.03); box-shadow: 0 0 0 3px var(--fuse), 0 10px 20px rgba(0,0,0,.4); }
+.card.gone { opacity: 0; transform: scale(.6); pointer-events: none; }
+.card.shake { animation: shake .3s; box-shadow: 0 0 0 3px var(--bad), 0 6px 14px rgba(0,0,0,.3); }
+@keyframes shake { 20% { transform: translateX(-7px); } 40% { transform: translateX(6px); } 60% { transform: translateX(-4px); } 80% { transform: translateX(3px); } }
+.float { position: absolute; pointer-events: none; font-family: var(--f-display); font-weight: 800; font-size: 1.1rem; transform: translate(-50%, -50%); animation: rise .8s forwards; text-shadow: 0 2px 4px rgba(0,0,0,.5); white-space: nowrap; z-index: 5; }
+.float.good { color: var(--good); }
+.float.bad { color: var(--bad); }
+.float.pts { color: var(--fg); }
+@keyframes rise { to { opacity: 0; transform: translate(-50%, -150%); } }
+.pairline { position: absolute; height: 2px; background: rgba(255,255,255,.25); transition: opacity .2s; }
+
+/* ── result ── */
+.stamp { align-self: flex-start; font-family: var(--f-display); font-weight: 800; font-size: 1.1rem; letter-spacing: 0.06em; padding: 6px 14px; border: 3px solid currentColor; border-radius: 6px; transform: rotate(-4deg); }
+.stamp.pass { color: var(--good); }
+.stamp.fail { color: var(--bad); }
+.bigscore { font-family: var(--f-display); font-weight: 800; font-size: 3.4rem; line-height: 1; font-variant-numeric: tabular-nums; }
+.bigscore small { display: block; font-size: 0.9rem; font-weight: 600; color: var(--muted); margin-top: 6px; font-family: var(--f-zh), var(--f-en); }
+.stats { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.stats div { background: var(--desk-2); padding: 10px 12px; display: flex; flex-direction: column; gap: 2px; }
+.stats b { font-family: var(--f-display); font-weight: 800; font-size: 1.25rem; font-variant-numeric: tabular-nums; }
+.missed { display: flex; flex-wrap: wrap; gap: 6px; }
+.missed span { background: var(--card); color: var(--card-ink); border-radius: 4px; padding: 4px 8px; font-size: 0.85rem; }
+.missed span em { font-style: normal; font-family: var(--f-zh); color: #5b6478; margin-left: 6px; }
+
+/* ── talents ── */
+.talent { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; align-items: center; background: var(--desk-2); border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
+.talent h3 { margin: 0; font-family: var(--f-zh); font-size: 1.05rem; }
+.talent p { margin: 0; color: var(--muted); font-size: 0.85rem; font-family: var(--f-zh), var(--f-en); grid-column: 1; }
+.pips { display: flex; gap: 4px; grid-column: 1; }
+.pips i { width: 18px; height: 6px; border-radius: 3px; background: var(--line); }
+.pips i.on { background: var(--fuse); }
+.talent .btn { grid-column: 2; grid-row: 1 / span 3; min-width: 92px; }
+.err { color: var(--bad); font-size: 0.85rem; min-height: 1.2em; font-family: var(--f-zh), var(--f-en); }
+
+@media (prefers-reduced-motion: reduce) {
+  .card { transition-duration: .01s; }
+  .float, .combo.bump, .fuse.low b, .card.shake { animation: none; }
+}
+</style>
+
+<div id="app">
+
+  <!-- 登入（僅連線模式） -->
+  <section class="screen" id="s-login" hidden>
+    <div class="topbar"><div class="brand">Word Rush<small>詞彙衝刺</small></div></div>
+    <div class="panel">
+      <p class="note">用 Google 帳號登入後，金幣和進度會存到雲端。</p>
+      <div id="gbtn"></div>
+      <div class="err" id="login-err"></div>
+    </div>
+  </section>
+
+  <!-- 首頁 -->
+  <section class="screen scroll" id="s-home" hidden>
+    <div class="topbar">
+      <div class="brand">Word Rush<small>詞彙衝刺</small></div>
+      <div class="coins" title="金幣"><i></i><span id="coins">0</span></div>
+    </div>
+    <div class="levels" id="levels"></div>
+    <div class="panel">
+      <div class="row" style="justify-content:space-between">
+        <span class="label">配對數（試玩用）</span>
+        <div class="chips" id="tier-chips"></div>
+      </div>
+      <p class="note" id="tier-note">自動：依完成度決定，0–30% 為 3 對，31–70% 為 5 對，71% 以上為 7 對。</p>
+    </div>
+    <div class="row">
+      <button class="btn" id="to-talents" type="button">天賦</button>
+      <button class="btn" id="sound" type="button"></button>
+      <span style="flex:1"></span>
+      <button class="btn" id="reset" type="button">重置進度</button>
+    </div>
+    <div class="confirm" id="reset-confirm" hidden>
+      <span class="note">清除所有金幣、天賦和單字紀錄？</span>
+      <button class="btn" id="reset-yes" type="button" style="border-color:var(--bad);color:var(--bad)">清除</button>
+      <button class="btn" id="reset-no" type="button">取消</button>
+    </div>
+    <div class="panel">
+      <span class="label">玩法</span>
+      <p class="note">每一波先顯示同色的中英配對，記住後卡片會洗牌、顏色消失。依序點一張英文、一張中文完成配對。答對加分，連擊從第二次起回補時間；答錯扣時間並短暫鎖定。時間歸零時，分數達到關卡目標就過關。</p>
+    </div>
+  </section>
+
+  <!-- 天賦 -->
+  <section class="screen scroll" id="s-talents" hidden>
+    <div class="topbar">
+      <button class="btn" id="talents-back" type="button">← 返回</button>
+      <div class="coins"><i></i><span id="coins2">0</span></div>
+    </div>
+    <div class="levels" id="talent-list"></div>
+    <div class="err" id="talent-err"></div>
+  </section>
+
+  <!-- 遊戲 -->
+  <section class="screen" id="s-game" hidden>
+    <div class="hud">
+      <div class="hud-top">
+        <div class="score" id="score">0<small id="goal-text"></small></div>
+        <div class="hud-right">
+          <span class="wave" id="wave"></span>
+          <button class="quit" id="quit" type="button">放棄</button>
+        </div>
+      </div>
+      <div class="fuse" id="fuse"><b id="fuse-fill"></b><span id="time">60.0</span></div>
+      <div class="goalbar" id="goalbar"><b id="goal-fill"></b></div>
+      <div class="status">
+        <span class="phase" id="phase"></span>
+        <span class="combo" id="combo"></span>
+      </div>
+      <div class="preview"><b id="preview-fill"></b></div>
+    </div>
+    <div class="board" id="board"></div>
+  </section>
+
+  <!-- 結算 -->
+  <section class="screen scroll" id="s-result" hidden>
+    <div class="topbar">
+      <span class="stamp" id="stamp"></span>
+      <div class="coins"><i></i><span id="coins3">0</span></div>
+    </div>
+    <div class="bigscore" id="r-score">0<small id="r-goal"></small></div>
+    <div class="stats" id="r-stats"></div>
+    <p class="note" id="r-note"></p>
+    <div id="r-missed-wrap" class="panel" hidden>
+      <span class="label">這局答錯的字</span>
+      <div class="missed" id="r-missed"></div>
+    </div>
+    <div class="row">
+      <button class="btn primary" id="again" type="button">再玩一次</button>
+      <button class="btn" id="home" type="button">回關卡</button>
+    </div>
+  </section>
+</div>
+
+<script type="module">
+// ═══════════════════════════ 設定 ═══════════════════════════
+// 部署到 GitHub Pages 並設定好 api.js 後，把這裡改成 true，改用 Google 試算表存檔。
+const USE_SERVER = true;
+const CLIENT_VERSION = '0.2.0';
+
+const LEVELS = [
+  { id: 'L01', name: '日常生活', passScore: 3000, next: 'L02' },
+  { id: 'L02', name: '校園', passScore: 4000, next: '' },
+];
+
+// [英文, 中文, 詞性, 近義群組]；同群組或同中文的字不會出現在同一波
+const RAW = {
+  L01: [
+    ['apple','蘋果','n'],['kitchen','廚房','n'],['borrow','借入','v'],['quiet','安靜的','adj'],
+    ['usually','通常','adv','FREQ_HIGH'],['umbrella','雨傘','n'],['big','大的','adj','SIZE_BIG'],['large','大型的','adj','SIZE_BIG'],
+    ['blanket','毯子','n'],['laundry','待洗衣物','n'],['neighbor','鄰居','n'],['grocery','雜貨','n'],
+    ['breakfast','早餐','n'],['ceiling','天花板','n'],['drawer','抽屜','n'],['mirror','鏡子','n'],
+    ['pillow','枕頭','n'],['recipe','食譜','n'],['towel','毛巾','n'],['wallet','錢包','n'],
+    ['ladder','梯子','n'],['bucket','水桶','n'],['garbage','垃圾','n'],['invite','邀請','v'],
+    ['repair','修理','v'],['lend','借出','v'],['purchase','購買','v'],['comfortable','舒適的','adj'],
+    ['noisy','吵鬧的','adj'],['empty','空的','adj'],['crowded','擁擠的','adj'],['often','經常','adv','FREQ_HIGH'],
+    ['rarely','很少','adv'],['schedule','行程表','n'],['tidy','整潔的','adj'],['sweep','掃地','v'],
+  ],
+  L02: [
+    ['library','圖書館','n'],['lecture','講座','n'],['semester','學期','n'],['assignment','作業','n'],
+    ['deadline','截止日期','n'],['professor','教授','n'],['classmate','同學','n'],['dormitory','宿舍','n'],
+    ['cafeteria','自助餐廳','n'],['scholarship','獎學金','n'],['graduate','畢業','v'],['register','註冊','v'],
+    ['attend','出席','v'],['absent','缺席的','adj'],['submit','繳交','v'],['review','複習','v'],
+    ['explain','解釋','v'],['discuss','討論','v'],['research','研究','n'],['experiment','實驗','n'],
+    ['laboratory','實驗室','n'],['textbook','課本','n'],['notebook','筆記本','n'],['campus','校園','n'],
+    ['major','主修','n'],['elective','選修課','n'],['tuition','學費','n'],['quiz','小考','n','TEST'],
+    ['exam','考試','n','TEST'],['grade','成績','n'],['presentation','口頭報告','n'],['diploma','畢業證書','n'],
+  ],
+};
+const VOCAB = Object.fromEntries(Object.entries(RAW).map(([lid, rows]) => [lid,
+  rows.map((r, i) => ({ id: `${lid}_${String(i + 1).padStart(3, '0')}`, en: r[0], zh: r[1], pos: r[2], syn: r[3] || '' }))]));
+
+// 價格需與 Code.gs 的 TALENTS 一致；效果需與 api.js 的 TALENT_EFFECTS 一致
+const TALENTS = {
+  breath: { name: '深呼吸',   desc: '關卡初始時間增加',     levels: [3, 5, 10],      costs: [100, 250, 500], fmt: v => `+${v} 秒` },
+  calm:   { name: '冷靜',     desc: '答錯時扣的時間減少',   levels: [2.5, 2],        costs: [150, 350],      fmt: v => `扣 ${v} 秒` },
+  combo:  { name: '熱力連擊', desc: '連擊得分倍率提升',     levels: [1.2, 1.4, 1.6], costs: [120, 300, 600], fmt: v => `×${v}` },
+  slowmo: { name: '慢動作',   desc: '每波記憶時間延長',     levels: [0.5],           costs: [200],           fmt: v => `+${v} 秒` },
+};
+
+const RULES = {
+  startTime: 60, wrongPenalty: 3, basePoints: 100, comboStep: 0.05, comboCap: 20,
+  timeBonus: 1, lockMs: 300, masteryStreak: 3,
+  coinsPerScore: 100, passBonus: 20, firstClearBonus: 50,
+};
+const PAIR_TINTS = ['#ffd1dc', '#cfe6ff', '#cdf2dc', '#fff1b8', '#e5d8ff', '#ffdcc4', '#c9f1f1'];
+
+// ═══════════════════════════ 存檔 ═══════════════════════════
+const SAVE_KEY = 'wordrush_save_v1';
+const blankSave = () => ({ coins: 0, unlocked: ['L01'], talents: {}, levels: {}, words: {}, sound: true, tier: 'auto' });
+let save = loadSave();
+function loadSave() {
+  try { const s = JSON.parse(localStorage.getItem(SAVE_KEY)); if (s) return Object.assign(blankSave(), s); } catch (e) {}
+  return blankSave();
+}
+function persist() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) {} }
+
+let api = null;
+let levels = LEVELS;
+const vocabCache = {};
+
+async function getVocab(levelId) {
+  if (vocabCache[levelId]) return vocabCache[levelId];
+  const list = USE_SERVER ? await api.loadVocab(levelId) : VOCAB[levelId];
+  vocabCache[levelId] = list;
+  return list;
+}
+
+function localMastery(levelId, list) {
+  if (!list || !list.length) return 0;
+  const n = list.filter(w => (save.words[w.id]?.s || 0) >= RULES.masteryStreak).length;
+  return Math.round(n / list.length * 1000) / 10;
+}
+function masteryOf(levelId) {
+  if (USE_SERVER) return save.levels[levelId]?.mastery || 0;
+  return localMastery(levelId, VOCAB[levelId]);
+}
+function tierFor(m) { return m <= 30 ? 3 : m <= 70 ? 5 : 7; }
+function mods() {
+  const v = (k, base) => { const lv = save.talents[k] || 0; return lv ? TALENTS[k].levels[lv - 1] : base; };
+  return { startBonus: v('breath', 0), wrongPenalty: v('calm', RULES.wrongPenalty), comboMult: v('combo', 1), previewBonus: v('slowmo', 0) };
+}
+
+// ═══════════════════════════ 畫面切換 ═══════════════════════════
+const $ = id => document.getElementById(id);
+function show(name) {
+  for (const s of document.querySelectorAll('.screen')) s.hidden = s.id !== 's-' + name;
+}
+function setCoins() { for (const id of ['coins', 'coins2', 'coins3']) $(id).textContent = save.coins.toLocaleString(); }
+
+// ═══════════════════════════ 首頁 ═══════════════════════════
+function renderHome() {
+  setCoins();
+  const box = $('levels');
+  box.innerHTML = '';
+  for (const lv of levels) {
+    const locked = !save.unlocked.includes(lv.id);
+    const m = masteryOf(lv.id);
+    const p = save.levels[lv.id] || {};
+    const pairs = save.tier === 'auto' ? tierFor(m) : Number(save.tier);
+    const count = !USE_SERVER && VOCAB[lv.id] ? `${VOCAB[lv.id].length} 字 · ` : '';
+    const b = document.createElement('button');
+    b.className = 'level';
+    b.type = 'button';
+    b.disabled = locked;
+    b.innerHTML = `
+      <span class="lid">${lv.id}</span>
+      <span class="tier">${locked ? '未解鎖' : pairs + ' 對'}</span>
+      <span class="lname">${esc(lv.name)}</span>
+      <span class="meta">${count}目標 ${lv.passScore.toLocaleString()} 分 · 最高 ${(p.high || 0).toLocaleString()}</span>
+      <span class="meta">完成度 ${m}%</span>
+      <span class="mbar"><b style="width:${m}%"></b></span>`;
+    b.addEventListener('click', () => startGame(lv.id));
+    box.appendChild(b);
+  }
+  const chips = $('tier-chips');
+  chips.innerHTML = '';
+  for (const t of ['auto', '3', '5', '7']) {
+    const c = document.createElement('button');
+    c.className = 'chip';
+    c.type = 'button';
+    c.textContent = t === 'auto' ? '自動' : `${t} 對`;
+    c.setAttribute('aria-pressed', String(save.tier === t));
+    c.addEventListener('click', () => { save.tier = t; persist(); renderHome(); });
+    chips.appendChild(c);
+  }
+  const tn = $('tier-note');
+  tn.style.color = '';
+  tn.textContent = '自動：依完成度決定，0–30% 為 3 對，31–70% 為 5 對，71% 以上為 7 對。';
+  $('sound').textContent = save.sound ? '語音：開' : '語音：關';
+  $('reset').hidden = USE_SERVER;
+  $('reset-confirm').hidden = true;
+  show('home');
+}
+$('sound').addEventListener('click', () => { save.sound = !save.sound; persist(); renderHome(); });
+$('reset').addEventListener('click', () => { $('reset-confirm').hidden = false; });
+$('reset-no').addEventListener('click', () => { $('reset-confirm').hidden = true; });
+$('reset-yes').addEventListener('click', () => { save = blankSave(); persist(); renderHome(); });
+$('to-talents').addEventListener('click', renderTalents);
+$('talents-back').addEventListener('click', renderHome);
+
+// ═══════════════════════════ 天賦 ═══════════════════════════
+function renderTalents() {
+  setCoins();
+  $('talent-err').textContent = '';
+  const box = $('talent-list');
+  box.innerHTML = '';
+  for (const [key, t] of Object.entries(TALENTS)) {
+    const lv = save.talents[key] || 0;
+    const maxed = lv >= t.costs.length;
+    const cur = lv ? t.fmt(t.levels[lv - 1]) : '未升級';
+    const nxt = maxed ? '' : ` → 下一級 ${t.fmt(t.levels[lv])}`;
+    const div = document.createElement('div');
+    div.className = 'talent';
+    div.innerHTML = `
+      <h3>${t.name}</h3>
+      <p>${t.desc}：${cur}${nxt}</p>
+      <div class="pips">${t.costs.map((_, i) => `<i class="${i < lv ? 'on' : ''}"></i>`).join('')}</div>`;
+    const b = document.createElement('button');
+    b.className = 'btn primary';
+    b.type = 'button';
+    b.textContent = maxed ? '已滿級' : `${t.costs[lv]} 金幣`;
+    b.disabled = maxed || save.coins < t.costs[lv];
+    b.addEventListener('click', () => buyTalent(key, b));
+    div.appendChild(b);
+    box.appendChild(div);
+  }
+  show('talents');
+}
+async function buyTalent(key, btn) {
+  const t = TALENTS[key];
+  const lv = save.talents[key] || 0;
+  if (USE_SERVER) {
+    btn.disabled = true;
+    try {
+      const r = await api.upgradeTalent(key);
+      applyProfile(r.profile);
+    } catch (e) {
+      $('talent-err').textContent = e.code === 'not_enough_coins' ? '金幣不夠。' : `升級失敗（${e.code || e.message}），請再試一次。`;
+      btn.disabled = false;
+      return;
+    }
+  } else {
+    if (lv >= t.costs.length || save.coins < t.costs[lv]) return;
+    save.coins -= t.costs[lv];
+    save.talents[key] = lv + 1;
+  }
+  persist();
+  renderTalents();
+}
+
+// ═══════════════════════════ 遊戲 ═══════════════════════════
+let g = null;
+const board = $('board');
+
+async function startGame(levelId) {
+  const level = levels.find(l => l.id === levelId);
+  let words;
+  try { words = await getVocab(levelId); }
+  catch (e) { alertHome(`找不到 ${levelId} 的題庫檔。請確認 vocab/level_${levelId}.json 已上傳。`); return; }
+  const m = masteryOf(levelId);
+  const pairs = Math.min(save.tier === 'auto' ? tierFor(m) : Number(save.tier), Math.floor(words.length / 2));
+  const md = mods();
+  const start = RULES.startTime + md.startBonus;
+  g = {
+    level, words, pairs, md,
+    time: start, maxTime: start,
+    score: 0, combo: 0, maxCombo: 0, correct: 0, wrong: 0, wave: 0,
+    phase: 'preview', cards: [], sel: null, lockUntil: 0,
+    runWords: {}, missed: new Map(), lastIds: new Set(),
+    t0: performance.now(), last: performance.now(), over: false, timers: [],
+  };
+  $('goal-text').textContent = ` / ${level.passScore.toLocaleString()}`;
+  show('game');
+  requestAnimationFrame(() => { nextWave(); g.raf = requestAnimationFrame(loop); });
+}
+function alertHome(msg) { renderHome(); const n = $('tier-note'); n.textContent = msg; n.style.color = 'var(--bad)'; }
+
+function later(fn, ms) { const id = setTimeout(fn, ms); g.timers.push(id); }
+function drain() { return Math.min(1.8, 1 + 0.04 * (g.wave - 1)); }
+
+function loop(now) {
+  if (!g || g.over) return;
+  const dt = Math.min(0.1, (now - g.last) / 1000);
+  g.last = now;
+  if (g.phase === 'play') {
+    g.time -= dt * drain();
+    if (g.time <= 0) { g.time = 0; drawHud(); endGame(); return; }
+  }
+  drawHud();
+  g.raf = requestAnimationFrame(loop);
+}
+
+function drawHud() {
+  const r = Math.max(0, g.time / g.maxTime);
+  $('fuse-fill').style.width = (r * 100) + '%';
+  $('fuse').className = 'fuse' + (r < 0.25 ? ' low' : r < 0.5 ? ' mid' : '');
+  $('time').textContent = g.time.toFixed(1);
+  $('score').firstChild.nodeValue = g.score.toLocaleString();
+  const gr = Math.min(1, g.score / g.level.passScore);
+  $('goal-fill').style.width = (gr * 100) + '%';
+  $('goalbar').classList.toggle('met', gr >= 1);
+  $('wave').textContent = `第 ${g.wave} 波 · ${g.pairs} 對`;
+}
+
+// ── 出題：錯過的字、沒見過的字優先；同一波不重複中文、不放近義詞 ──
+function pickWords(pool, n) {
+  let cands = pool.filter(w => !g.lastIds.has(w.id));
+  if (cands.length < n * 2) cands = pool.slice();
+  const weight = w => {
+    const s = save.words[w.id];
+    if (!s) return 1.6;
+    return Math.max(0.2, 1 + Math.min(s.w, 4) * 0.8 - Math.min(s.s, 3) * 0.25);
+  };
+  const picked = [], zh = new Set(), syn = new Set();
+  const ok = w => !zh.has(w.zh) && !(w.syn && syn.has(w.syn));
+  let bag = cands.slice();
+  while (picked.length < n && bag.length) {
+    const usable = bag.filter(ok);
+    if (!usable.length) break;
+    const total = usable.reduce((a, w) => a + weight(w), 0);
+    let r = Math.random() * total, chosen = usable[usable.length - 1];
+    for (const w of usable) { r -= weight(w); if (r <= 0) { chosen = w; break; } }
+    picked.push(chosen); zh.add(chosen.zh); if (chosen.syn) syn.add(chosen.syn);
+    bag = bag.filter(w => w !== chosen);
+  }
+  if (picked.length < n) {
+    for (const w of pool) { if (picked.length >= n) break; if (!picked.includes(w) && ok(w)) { picked.push(w); zh.add(w.zh); if (w.syn) syn.add(w.syn); } }
+  }
+  g.lastIds = new Set(picked.map(w => w.id));
+  return picked;
+}
+
+function nextWave() {
+  if (g.over) return;
+  g.wave++;
+  g.sel = null;
+  g.phase = 'preview';
+  board.innerHTML = '';
+  const words = pickWords(g.words, g.pairs);
+  g.cards = [];
+  words.forEach((w, i) => {
+    const tint = PAIR_TINTS[i % PAIR_TINTS.length];
+    for (const lang of ['en', 'zh']) {
+      const el = document.createElement('button');
+      el.type = 'button';
+      el.className = 'card ' + lang;
+      const text = lang === 'en' ? w.en : w.zh;
+      if ((lang === 'en' && text.length > 10) || (lang === 'zh' && text.length > 4)) el.classList.add('long');
+      el.textContent = text;
+      el.style.setProperty('--tint', tint);
+      const c = { el, wid: w.id, word: w, lang, pairIndex: i, done: false, slot: 0 };
+      el.addEventListener('click', () => onTap(c));
+      g.cards.push(c);
+      board.appendChild(el);
+    }
+  });
+  layoutPreview(false);
+  const ms = (Math.max(2, 0.45 * g.pairs) + g.md.previewBonus) * 1000;
+  $('phase').textContent = '記住配對';
+  $('phase').className = 'phase';
+  const pf = $('preview-fill');
+  pf.style.transition = 'none'; pf.style.width = '100%';
+  requestAnimationFrame(() => requestAnimationFrame(() => { pf.style.transition = `width ${ms}ms linear`; pf.style.width = '0%'; }));
+  drawHud();
+  later(shuffle, ms);
+}
+
+function boardBox() { return { W: board.clientWidth, H: board.clientHeight }; }
+function place(el, x, y, w, h) { el.style.left = x + 'px'; el.style.top = y + 'px'; el.style.width = w + 'px'; el.style.height = h + 'px'; }
+
+function layoutPreview() {
+  const { W, H } = boardBox();
+  const gapX = 22, gapY = 8, rows = g.pairs;
+  const cw = (W - gapX) / 2;
+  const ch = Math.min(64, (H - gapY * (rows - 1)) / rows);
+  const top = Math.max(0, (H - (rows * ch + gapY * (rows - 1))) / 2);
+  for (const c of g.cards) {
+    const x = c.lang === 'en' ? 0 : cw + gapX;
+    place(c.el, x, top + c.pairIndex * (ch + gapY), cw, ch);
+  }
+}
+
+function gridCols(n, W) {
+  if (n <= 6) return 3;
+  if (W < 480) return 2;
+  return n <= 10 ? 5 : 4;
+}
+function layoutGrid() {
+  const { W, H } = boardBox();
+  const n = g.cards.length, cols = gridCols(n, W), rows = Math.ceil(n / cols), gap = 10;
+  const cw = (W - gap * (cols - 1)) / cols;
+  const ch = Math.min(86, (H - gap * (rows - 1)) / rows);
+  const top = Math.max(0, (H - (rows * ch + gap * (rows - 1))) / 2);
+  for (const c of g.cards) {
+    const r = Math.floor(c.slot / cols), col = c.slot % cols;
+    place(c.el, col * (cw + gap), top + r * (ch + gap), cw, ch);
+  }
+}
+
+function shuffle() {
+  if (g.over) return;
+  g.phase = 'shuffle';
+  $('phase').textContent = '洗牌中…';
+  const { W, H } = boardBox();
+  const w = W / 3, h = 56;
+  for (const c of g.cards) {
+    c.el.classList.add('neutral');
+    place(c.el, W / 2 - w / 2 + (Math.random() - 0.5) * 30, H / 2 - h / 2 + (Math.random() - 0.5) * 30, w, h);
+  }
+  const slots = g.cards.map((_, i) => i);
+  for (let i = slots.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [slots[i], slots[j]] = [slots[j], slots[i]]; }
+  g.cards.forEach((c, i) => { c.slot = slots[i]; });
+  later(() => {
+    layoutGrid();
+    later(() => {
+      g.phase = 'play';
+      g.last = performance.now();
+      $('phase').textContent = '開始配對！';
+      $('phase').className = 'phase go';
+    }, 300);
+  }, 230);
+}
+
+window.addEventListener('resize', () => {
+  if (!g || g.over || $('s-game').hidden) return;
+  if (g.phase === 'preview') layoutPreview(); else if (g.phase !== 'shuffle') layoutGrid();
+});
+
+function rec(wid) { return (g.runWords[wid] = g.runWords[wid] || { c: 0, w: 0 }); }
+
+function onTap(c) {
+  if (!g || g.over || g.phase !== 'play' || c.done || performance.now() < g.lockUntil) return;
+  if (!g.sel) { select(c); return; }
+  if (g.sel === c) { deselect(); return; }
+  if (g.sel.lang === c.lang) { deselect(); select(c); return; }
+  if (g.sel.wid === c.wid) match(g.sel, c); else miss(g.sel, c);
+}
+function select(c) { g.sel = c; c.el.classList.add('sel'); }
+function deselect() { if (g.sel) g.sel.el.classList.remove('sel'); g.sel = null; }
+
+function centerOf(c) { return { x: c.el.offsetLeft + c.el.offsetWidth / 2, y: c.el.offsetTop + c.el.offsetHeight / 2 }; }
+function floatText(text, cls, x, y) {
+  const f = document.createElement('div');
+  f.className = 'float ' + cls;
+  f.textContent = text;
+  f.style.left = x + 'px'; f.style.top = y + 'px';
+  board.appendChild(f);
+  setTimeout(() => f.remove(), 850);
+}
+
+function match(a, b) {
+  const remaining = g.cards.filter(c => !c.done).length / 2;
+  const credited = remaining > 1; // 每波最後一對可用排除法，不計入熟練度
+  g.correct++;
+  g.combo++;
+  g.maxCombo = Math.max(g.maxCombo, g.combo);
+  const mult = 1 + Math.min(g.combo - 1, RULES.comboCap) * RULES.comboStep;
+  const pts = Math.round(RULES.basePoints * mult * (g.combo >= 2 ? g.md.comboMult : 1));
+  g.score += pts;
+  const p = centerOf(b);
+  floatText('+' + pts, 'pts', p.x, p.y);
+  if (g.combo >= 2) {
+    const tb = Math.round(RULES.timeBonus * Math.max(0.4, 1 - 0.06 * (g.wave - 1)) * 10) / 10;
+    g.time = Math.min(g.maxTime, g.time + tb);
+    const q = centerOf(a);
+    floatText(`+${tb}s`, 'good', q.x, q.y);
+  }
+  if (credited) rec(a.wid).c++;
+  a.done = b.done = true;
+  a.el.classList.add('gone'); b.el.classList.add('gone');
+  a.el.classList.remove('sel');
+  g.sel = null;
+  const ce = $('combo');
+  ce.textContent = g.combo >= 2 ? `${g.combo} 連擊` : '';
+  ce.classList.toggle('on', g.combo >= 2);
+  ce.classList.remove('bump'); void ce.offsetWidth; if (g.combo >= 2) ce.classList.add('bump');
+  speak(a.word.en);
+  if (remaining - 1 === 0) {
+    g.phase = 'clear';
+    $('phase').textContent = '清空！';
+    later(nextWave, 380);
+  }
+}
+
+function miss(a, b) {
+  g.wrong++;
+  g.combo = 0;
+  $('combo').classList.remove('on');
+  rec(a.wid).w++;
+  g.missed.set(a.wid, a.word);
+  g.time -= g.md.wrongPenalty;
+  const p = centerOf(b);
+  floatText(`-${g.md.wrongPenalty}s`, 'bad', p.x, p.y);
+  for (const c of [a, b]) { c.el.classList.remove('shake'); void c.el.offsetWidth; c.el.classList.add('shake'); }
+  try { navigator.vibrate && navigator.vibrate(60); } catch (e) {}
+  g.lockUntil = performance.now() + RULES.lockMs;
+  later(() => { a.el.classList.remove('shake'); b.el.classList.remove('shake'); deselect(); }, RULES.lockMs);
+  if (g.time <= 0) { g.time = 0; drawHud(); endGame(); }
+}
+
+function speak(text) {
+  if (!save.sound || !('speechSynthesis' in window)) return;
+  try {
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'en-US'; u.rate = 1.05;
+    speechSynthesis.speak(u);
+  } catch (e) {}
+}
+
+function stopGame() {
+  if (!g) return;
+  g.over = true;
+  cancelAnimationFrame(g.raf);
+  g.timers.forEach(clearTimeout);
+  try { speechSynthesis.cancel(); } catch (e) {}
+}
+$('quit').addEventListener('click', () => { stopGame(); renderHome(); });
+
+// ═══════════════════════════ 結算 ═══════════════════════════
+function uuid() {
+  if (crypto.randomUUID) return crypto.randomUUID();
+  return 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2);
+}
+
+function updateLocalWords(words) {
+  for (const [id, r] of Object.entries(words)) {
+    const s = (save.words[id] = save.words[id] || { c: 0, w: 0, s: 0 });
+    s.c += r.c; s.w += r.w;
+    s.s = r.w > 0 ? 0 : s.s + r.c;
+  }
+}
+
+function settleLocal(run) {
+  const lv = g.level;
+  const passed = run.score >= lv.passScore;
+  const p = (save.levels[lv.id] = save.levels[lv.id] || { high: 0, clears: 0 });
+  const newHigh = run.score > p.high;
+  const firstClear = passed && p.clears === 0;
+  p.high = Math.max(p.high, run.score);
+  p.clears += passed ? 1 : 0;
+  const coins = Math.floor(run.score / RULES.coinsPerScore) + (passed ? RULES.passBonus : 0) + (firstClear ? RULES.firstClearBonus : 0);
+  save.coins += coins;
+  let newlyUnlocked = null;
+  if (passed && lv.next && !save.unlocked.includes(lv.next)) { save.unlocked.push(lv.next); newlyUnlocked = lv.next; }
+  const mastery = localMastery(lv.id, g.words);
+  p.mastery = mastery;
+  return { passed, coinsEarned: coins, newlyUnlocked, mastery, highScore: p.high, newHigh, firstClear };
+}
+
+async function endGame() {
+  if (g.over) return;
+  stopGame();
+  const run = {
+    runId: uuid(),
+    levelId: g.level.id,
+    score: Math.round(g.score),
+    correct: g.correct,
+    wrong: g.wrong,
+    maxCombo: g.maxCombo,
+    durationSec: Math.max(1, Math.round((performance.now() - g.t0) / 1000)),
+    words: g.runWords,
+    clientVersion: CLIENT_VERSION,
+  };
+  updateLocalWords(run.words);
+  let res, note = '';
+  if (USE_SERVER) {
+    showResult({ pending: true }, run, '上傳成績中…');
+    try {
+      const r = await api.submitRun(run);
+      if (r.queued) {
+        res = { passed: run.score >= g.level.passScore, coinsEarned: null, mastery: masteryOf(g.level.id), highScore: Math.max(run.score, save.levels[g.level.id]?.high || 0) };
+        note = r.reason === 'auth' ? '登入已過期，成績先存在這台裝置，重新整理頁面登入後會自動上傳。' : '目前連不上伺服器，成績先存在這台裝置，下次登入時會自動上傳。';
+      } else if (r.duplicate) {
+        res = { passed: run.score >= g.level.passScore, coinsEarned: 0, mastery: masteryOf(g.level.id), highScore: save.levels[g.level.id]?.high || run.score };
+      } else {
+        applyProfile(r.profile);
+        save.levels[g.level.id] = Object.assign(save.levels[g.level.id] || {}, { high: r.level.highScore, mastery: r.level.masteryPercent });
+        res = { passed: r.passed, coinsEarned: r.coinsEarned, newlyUnlocked: r.newlyUnlocked, mastery: r.level.masteryPercent, highScore: r.level.highScore, newHigh: r.level.newHighScore };
+      }
+    } catch (e) {
+      res = { passed: run.score >= g.level.passScore, coinsEarned: null, mastery: masteryOf(g.level.id), highScore: save.levels[g.level.id]?.high || 0 };
+      note = e.code === 'rejected' ? `這局成績沒有通過伺服器檢查（${e.message}），不會計入。` : `上傳失敗（${e.code || e.message}）。`;
+    }
+  } else {
+    res = settleLocal(run);
+  }
+  persist();
+  showResult(res, run, note);
+}
+
+function showResult(res, run, note) {
+  setCoins();
+  const lv = g.level;
+  const stamp = $('stamp');
+  if (res.pending) { stamp.textContent = '結算中'; stamp.className = 'stamp'; }
+  else { stamp.textContent = res.passed ? '過關' : '未達標'; stamp.className = 'stamp ' + (res.passed ? 'pass' : 'fail'); }
+  $('r-score').firstChild.nodeValue = run.score.toLocaleString();
+  $('r-goal').textContent = `${lv.name} · 目標 ${lv.passScore.toLocaleString()} 分`;
+  const acc = run.correct + run.wrong ? Math.round(run.correct / (run.correct + run.wrong) * 100) : 0;
+  const cells = res.pending ? [] : [
+    ['獲得金幣', res.coinsEarned == null ? '—' : '+' + res.coinsEarned],
+    ['完成度', res.mastery + '%'],
+    ['最高分', (res.highScore || 0).toLocaleString() + (res.newHigh ? ' 新紀錄' : '')],
+    ['最高連擊', run.maxCombo],
+    ['答對 / 答錯', `${run.correct} / ${run.wrong}`],
+    ['正確率', acc + '%'],
+  ];
+  $('r-stats').innerHTML = cells.map(([k, v]) => `<div><span class="label">${k}</span><b>${v}</b></div>`).join('');
+  const extra = [];
+  if (res.newlyUnlocked) extra.push(`已解鎖 ${res.newlyUnlocked}。`);
+  if (note) extra.push(note);
+  $('r-note').textContent = extra.join(' ');
+  const missed = [...g.missed.values()];
+  $('r-missed-wrap').hidden = !missed.length;
+  $('r-missed').innerHTML = missed.map(w => `<span>${esc(w.en)}<em>${esc(w.zh)}</em></span>`).join('');
+  $('again').disabled = $('home').disabled = !!res.pending;
+  show('result');
+}
+$('again').addEventListener('click', () => startGame(g.level.id));
+$('home').addEventListener('click', renderHome);
+
+function esc(s) { return String(s).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch])); }
+
+// ═══════════════════════════ 連線模式 ═══════════════════════════
+function applyProfile(p) {
+  if (!p) return;
+  save.coins = p.coins;
+  save.unlocked = p.unlockedLevels;
+  save.talents = p.talents;
+}
+
+async function bootServer() {
+  show('login');
+  try {
+    api = await import('./api.js');
+    await new Promise((ok, fail) => {
+      const t0 = Date.now();
+      (function wait() {
+        if (window.google && google.accounts && google.accounts.id) return ok();
+        if (Date.now() - t0 > 10000) return fail(new Error('Google 登入元件載入失敗'));
+        setTimeout(wait, 100);
+      })();
+    });
+    const data = await api.login($('gbtn'));
+    applyProfile(data.profile);
+    levels = data.levels;
+    for (const pr of data.progress) {
+      save.levels[pr.levelId] = Object.assign(save.levels[pr.levelId] || {}, { high: pr.highScore, mastery: pr.masteryPercent, clears: pr.clears });
+    }
+    persist();
+    renderHome();
+  } catch (e) {
+    $('login-err').textContent = `登入失敗：${e.code || ''} ${e.message || e}`;
+  }
+}
+
+if (USE_SERVER) bootServer(); else renderHome();
+</script>
+
+</body>
+</html>
