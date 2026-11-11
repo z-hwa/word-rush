@@ -177,8 +177,152 @@ button:focus-visible { outline: 3px solid var(--fuse); outline-offset: 2px; }
   .card { transition-duration: .01s; }
   .float, .combo.bump, .fuse.low b, .card.shake { animation: none; }
 }
+
+/* ═══════ 酷炫主題：霓虹街機（疊在上面的樣式會覆蓋前面的） ═══════ */
+:root {
+  --desk: #0a0e24;
+  --desk-2: rgba(22, 30, 68, .72);
+  --line: rgba(130, 150, 255, .3);
+  --neon-c: #38e8ff;
+  --neon-p: #ff4fd8;
+  --neon-v: #8b5cf6;
+}
+body { background: #070b1f; }
+#bg, #fx { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+#bg { z-index: 0; }
+#fx { z-index: 50; }
+#app { position: relative; z-index: 1; }
+body::before { /* 掃描線 + 暗角 */
+  content: ''; position: fixed; inset: 0; z-index: 2; pointer-events: none;
+  background:
+    radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,.45) 100%),
+    repeating-linear-gradient(0deg, rgba(255,255,255,.025) 0 1px, transparent 1px 3px);
+}
+body.danger::after { /* 時間快沒了：邊緣紅光脈動 */
+  content: ''; position: fixed; inset: 0; z-index: 49; pointer-events: none;
+  box-shadow: inset 0 0 90px 10px rgba(255, 50, 50, .55);
+  animation: dangerPulse .7s ease-in-out infinite alternate;
+}
+@keyframes dangerPulse { from { opacity: .25; } to { opacity: 1; } }
+
+.screen { animation: screenIn .35s cubic-bezier(.2,.8,.2,1); }
+@keyframes screenIn { from { opacity: 0; transform: translateY(10px); } }
+
+.brand {
+  background: linear-gradient(90deg, var(--neon-c), var(--neon-p), var(--neon-c));
+  background-size: 200% 100%; -webkit-background-clip: text; background-clip: text;
+  color: transparent; animation: sheen 5s linear infinite;
+  filter: drop-shadow(0 0 14px rgba(56, 232, 255, .45));
+}
+.brand small { color: var(--muted); -webkit-text-fill-color: var(--muted); }
+@keyframes sheen { to { background-position: 200% 0; } }
+
+.panel, .talent, .coins, .stats div {
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 0 0 1px rgba(255,255,255,.03) inset, 0 10px 30px rgba(0,0,0,.35);
+}
+.stats div { backdrop-filter: none; box-shadow: none; }
+.panel, .talent { position: relative; }
+.panel::before, .talent::before { /* 漸層邊框 */
+  content: ''; position: absolute; inset: -1px; border-radius: inherit; padding: 1px; pointer-events: none;
+  background: linear-gradient(135deg, rgba(56,232,255,.55), rgba(255,79,216,.05) 40%, rgba(139,92,246,.5));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor; mask-composite: exclude;
+}
+.coins i { animation: coinShine 2.4s ease-in-out infinite; }
+@keyframes coinShine { 50% { box-shadow: inset 0 -2px 0 #c97c12, 0 0 12px 2px rgba(255,179,71,.8); } }
+
+.btn { transition: transform .12s, box-shadow .2s, border-color .2s, filter .2s; backdrop-filter: blur(6px); }
+.btn:hover:not(:disabled) { box-shadow: 0 0 16px rgba(56,232,255,.35); border-color: var(--neon-c); transform: translateY(-1px); }
+.btn:active:not(:disabled) { transform: translateY(1px) scale(.97); }
+.btn.primary {
+  background: linear-gradient(135deg, #ffd166, #ff8a4c); border-color: transparent; color: #2a1200;
+  box-shadow: 0 0 18px rgba(255,160,70,.45);
+}
+.btn.primary:hover:not(:disabled) { box-shadow: 0 0 28px rgba(255,160,70,.8); border-color: transparent; }
+.chip { transition: background .2s, box-shadow .2s; }
+.chip[aria-pressed="true"] { background: linear-gradient(135deg, var(--neon-c), var(--neon-v)); color: #04101c; border-color: transparent; box-shadow: 0 0 14px rgba(56,232,255,.5); }
+
+.level { overflow: hidden; transition: transform .18s, box-shadow .25s; }
+.level::before { /* 頂端霓虹條 */
+  content: ''; position: absolute; left: 0; right: 0; top: 0; height: 4px;
+  background: linear-gradient(90deg, var(--neon-c), var(--neon-p), var(--neon-v));
+}
+.level::after { /* 滑過時的反光 */
+  content: ''; position: absolute; top: 0; bottom: 0; width: 40%; left: -60%; transform: skewX(-20deg);
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.55), transparent); pointer-events: none;
+}
+.level:hover:not(:disabled) { box-shadow: 0 2px 0 #d8d1c0, 0 14px 34px rgba(0,0,0,.45), 0 0 26px rgba(56,232,255,.4); }
+.level:hover:not(:disabled)::after { left: 130%; transition: left .7s; }
+.mbar { background: #e6dfcf; }
+.mbar b { background: linear-gradient(90deg, #2f8f6d, #38e8b0); transition: width .8s cubic-bezier(.2,.8,.2,1); }
+
+.score.pop { animation: scorePop .25s; }
+@keyframes scorePop { 40% { transform: scale(1.12); color: var(--neon-c); text-shadow: 0 0 18px var(--neon-c); } }
+.score { text-shadow: 0 0 20px rgba(56,232,255,.25); }
+
+.fuse { height: 24px; box-shadow: 0 0 0 1px rgba(255,255,255,.04) inset, 0 0 18px rgba(56,232,255,.12); }
+.fuse b { background: linear-gradient(90deg, #1fc28c, #7dffcf); box-shadow: 0 0 16px rgba(95,211,166,.8); }
+.fuse b::after { /* 流動高光 */
+  content: ''; position: absolute; inset: 0;
+  background: repeating-linear-gradient(115deg, rgba(255,255,255,.22) 0 8px, transparent 8px 18px);
+  animation: fuseFlow 1s linear infinite;
+}
+@keyframes fuseFlow { to { background-position: 36px 0; } }
+.fuse.mid b { background: linear-gradient(90deg, #ff9f1c, #ffd166); box-shadow: 0 0 16px rgba(255,179,71,.85); }
+.fuse.low b { background: linear-gradient(90deg, #ff3b3b, #ff7a7a); box-shadow: 0 0 20px rgba(255,70,70,.95); }
+.goalbar { height: 6px; }
+.goalbar b { background: linear-gradient(90deg, var(--neon-c), var(--neon-p)); box-shadow: 0 0 10px rgba(56,232,255,.6); }
+.goalbar.met b { background: linear-gradient(90deg, #5fd3a6, #c8ffe9); box-shadow: 0 0 12px rgba(95,211,166,.9); }
+.preview b { background: linear-gradient(90deg, var(--neon-c), var(--neon-v)); box-shadow: 0 0 8px var(--neon-c); }
+
+.card {
+  box-shadow: 0 2px 0 rgba(0,0,0,.2), 0 8px 18px rgba(0,0,0,.4), 0 0 0 1px rgba(255,255,255,.35) inset;
+  transition: left .32s cubic-bezier(.3,.8,.3,1), top .32s cubic-bezier(.3,.8,.3,1), width .32s, height .32s,
+    background-color .35s, transform .15s, opacity .25s, box-shadow .2s, filter .25s;
+}
+.card:hover:not(.gone) { filter: brightness(1.06); }
+.card.sel { box-shadow: 0 0 0 3px var(--neon-c), 0 0 24px 4px rgba(56,232,255,.65), 0 10px 20px rgba(0,0,0,.4); }
+.card.gone { opacity: 0; transform: scale(1.3); filter: brightness(2) blur(2px); }
+.card.shake { box-shadow: 0 0 0 3px var(--bad), 0 0 24px 4px rgba(255,70,70,.7); }
+#s-game { position: relative; }
+#s-game.shake-screen { animation: screenShake .32s; }
+@keyframes screenShake { 20% { transform: translate(-6px, 3px); } 40% { transform: translate(5px, -3px); } 60% { transform: translate(-3px, 2px); } 80% { transform: translate(2px, -1px); } }
+
+.combo { font-size: 1.25rem; letter-spacing: .04em; text-shadow: 0 0 14px rgba(255,179,71,.8); }
+.combo[data-tier="1"] { color: #ff9f1c; font-size: 1.4rem; text-shadow: 0 0 16px rgba(255,159,28,.95); }
+.combo[data-tier="2"] { color: var(--neon-p); font-size: 1.6rem; text-shadow: 0 0 18px rgba(255,79,216,1); }
+.combo[data-tier="3"] { font-size: 1.8rem; background: linear-gradient(90deg, #ff4fd8, #ffd166, #38e8ff, #ff4fd8); background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: sheen 1.2s linear infinite; filter: drop-shadow(0 0 10px rgba(255,200,100,.9)); }
+.combo.bump { animation: bump .25s; }
+.combo[data-tier="3"].bump { animation: sheen 1.2s linear infinite, bump .25s; }
+.float { font-size: 1.3rem; text-shadow: 0 0 10px currentColor, 0 2px 4px rgba(0,0,0,.6); }
+.float.pts { color: #fff; }
+
+.banner {
+  position: absolute; left: 0; right: 0; top: 42%; text-align: center; pointer-events: none; z-index: 10;
+  font-family: var(--f-display); font-weight: 800; font-size: clamp(2.4rem, 12vw, 4.2rem); letter-spacing: .08em;
+  background: linear-gradient(90deg, var(--neon-c), var(--neon-p)); -webkit-background-clip: text; background-clip: text; color: transparent;
+  filter: drop-shadow(0 0 18px rgba(56,232,255,.7)); opacity: 0; transform: scale(.6);
+}
+.banner.show { animation: bannerIn .9s cubic-bezier(.2,.8,.2,1); }
+.banner.go { background: linear-gradient(90deg, #ffd166, #ff6b6b); -webkit-background-clip: text; background-clip: text; filter: drop-shadow(0 0 20px rgba(255,150,80,.8)); }
+@keyframes bannerIn { 0% { opacity: 0; transform: scale(.5); } 25% { opacity: 1; transform: scale(1.08); } 70% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(1.3); } }
+
+.stamp { animation: stampIn .5s cubic-bezier(.2,1.4,.4,1); text-shadow: 0 0 14px currentColor; box-shadow: 0 0 18px currentColor, 0 0 18px currentColor inset; }
+@keyframes stampIn { from { opacity: 0; transform: rotate(-4deg) scale(2.4); } }
+.bigscore { background: linear-gradient(180deg, #fff, #9fe9ff); -webkit-background-clip: text; background-clip: text; color: transparent; filter: drop-shadow(0 0 18px rgba(56,232,255,.4)); }
+.bigscore small { -webkit-text-fill-color: var(--muted); }
+.stats b { text-shadow: 0 0 12px rgba(56,232,255,.35); }
+.pips i.on { background: linear-gradient(90deg, #ffd166, #ff8a4c); box-shadow: 0 0 8px rgba(255,160,70,.8); }
+
+@media (prefers-reduced-motion: reduce) {
+  .screen, .brand, .coins i, .fuse b::after, .banner.show, .stamp, body.danger::after, #s-game.shake-screen, .score.pop { animation: none; }
+  .banner.show { opacity: 1; transform: none; }
+}
 </style>
 
+<canvas id="bg" aria-hidden="true"></canvas>
+<canvas id="fx" aria-hidden="true"></canvas>
 <div id="app">
 
   <!-- 登入（僅連線模式） -->
@@ -207,6 +351,8 @@ button:focus-visible { outline: 3px solid var(--fuse); outline-offset: 2px; }
     </div>
     <div class="row">
       <button class="btn" id="to-talents" type="button">天賦</button>
+      <button class="btn" id="sfx" type="button"></button>
+      <button class="btn" id="music" type="button"></button>
       <button class="btn" id="sound" type="button"></button>
       <span style="flex:1"></span>
       <button class="btn" id="reset" type="button">重置進度</button>
@@ -218,7 +364,8 @@ button:focus-visible { outline: 3px solid var(--fuse); outline-offset: 2px; }
     </div>
     <div class="panel">
       <span class="label">玩法</span>
-      <p class="note">每一波先顯示同色的中英配對，記住後卡片會洗牌、顏色消失。依序點一張英文、一張中文完成配對。答對加分，連擊從第二次起回補時間；答錯扣時間並短暫鎖定。時間歸零時，分數達到關卡目標就過關。</p>
+      <p class="note">每一波先顯示同色的中英配對，記住後卡片會洗牌、顏色消失。依序點一張英文、一張中文完成配對。答對加分，連擊從第二次起小幅回補時間；答錯扣時間並短暫鎖定。時間歸零時，分數達到關卡目標就過關。</p>
+      <p class="note">完成度：每個字連續答對最多累積 3 次（答錯歸零），累積滿 3 次算熟練。每答對一次完成度就會往上加一點。</p>
     </div>
   </section>
 
@@ -251,6 +398,7 @@ button:focus-visible { outline: 3px solid var(--fuse); outline-offset: 2px; }
       <div class="preview"><b id="preview-fill"></b></div>
     </div>
     <div class="board" id="board"></div>
+    <div class="banner" id="banner"></div>
   </section>
 
   <!-- 結算 -->
@@ -274,10 +422,12 @@ button:focus-visible { outline: 3px solid var(--fuse); outline-offset: 2px; }
 </div>
 
 <script type="module">
+import * as FX from './fx.js';
+const REDUCE_MOTION = matchMedia('(prefers-reduced-motion: reduce)').matches;
 // ═══════════════════════════ 設定 ═══════════════════════════
 // 部署到 GitHub Pages 並設定好 api.js 後，把這裡改成 true，改用 Google 試算表存檔。
 const USE_SERVER = true;
-const CLIENT_VERSION = '0.2.0';
+const CLIENT_VERSION = '0.3.0';
 
 const LEVELS = [
   { id: 'L01', name: '日常生活', passScore: 1000, next: 'L02' },
@@ -461,7 +611,7 @@ const PAIR_TINTS = ['#ffd1dc', '#cfe6ff', '#cdf2dc', '#fff1b8', '#e5d8ff', '#ffd
 
 // ═══════════════════════════ 存檔 ═══════════════════════════
 const SAVE_KEY = 'wordrush_save_v1';
-const blankSave = () => ({ coins: 0, unlocked: ['L01'], talents: {}, levels: {}, words: {}, sound: true, tier: 'auto' });
+const blankSave = () => ({ coins: 0, unlocked: ['L01'], talents: {}, levels: {}, words: {}, sound: true, sfx: true, music: true, tier: 'auto' });
 let save = loadSave();
 function loadSave() {
   try { const s = JSON.parse(localStorage.getItem(SAVE_KEY)); if (s) return Object.assign(blankSave(), s); } catch (e) {}
@@ -482,8 +632,9 @@ async function getVocab(levelId) {
 
 function localMastery(levelId, list) {
   if (!list || !list.length) return 0;
-  const n = list.filter(w => (save.words[w.id]?.s || 0) >= RULES.masteryStreak).length;
-  return Math.round(n / list.length * 1000) / 10;
+  // 學習進度：每個字的連續答對次數（上限 masteryStreak）加總，滿格才算 100%
+  const sum = list.reduce((a, w) => a + Math.min(save.words[w.id]?.s || 0, RULES.masteryStreak), 0);
+  return Math.round(sum / (list.length * RULES.masteryStreak) * 1000) / 10;
 }
 function masteryOf(levelId) {
   if (USE_SERVER) return save.levels[levelId]?.mastery || 0;
@@ -497,6 +648,13 @@ function mods() {
 
 // ═══════════════════════════ 畫面切換 ═══════════════════════════
 const $ = id => document.getElementById(id);
+
+// 音效、背景、特效初始化（瀏覽器要使用者操作過才能發聲）
+FX.initFx($('bg'), $('fx'));
+FX.setPrefs({ sfx: save.sfx, music: save.music });
+addEventListener('pointerdown', () => FX.unlock(), { passive: true });
+addEventListener('keydown', () => FX.unlock());
+document.addEventListener('click', e => { if (e.target.closest('.btn, .level, .chip, .quit')) FX.sfx.click(); });
 function show(name) {
   for (const s of document.querySelectorAll('.screen')) s.hidden = s.id !== 's-' + name;
 }
@@ -542,11 +700,16 @@ function renderHome() {
   tn.style.color = '';
   tn.textContent = '自動：依完成度決定，0–30% 為 3 對，31–70% 為 5 對，71% 以上為 7 對。';
   $('sound').textContent = save.sound ? '語音：開' : '語音：關';
+  $('sfx').textContent = save.sfx ? '音效：開' : '音效：關';
+  $('music').textContent = save.music ? '音樂：開' : '音樂：關';
   $('reset').hidden = USE_SERVER;
   $('reset-confirm').hidden = true;
+  FX.music.play('menu');
   show('home');
 }
 $('sound').addEventListener('click', () => { save.sound = !save.sound; persist(); renderHome(); });
+$('sfx').addEventListener('click', () => { save.sfx = !save.sfx; FX.setPrefs({ sfx: save.sfx }); persist(); renderHome(); });
+$('music').addEventListener('click', () => { save.music = !save.music; FX.setPrefs({ music: save.music }); persist(); renderHome(); });
 $('reset').addEventListener('click', () => { $('reset-confirm').hidden = false; });
 $('reset-no').addEventListener('click', () => { $('reset-confirm').hidden = true; });
 $('reset-yes').addEventListener('click', () => { save = blankSave(); persist(); renderHome(); });
@@ -625,6 +788,9 @@ async function startGame(levelId) {
     t0: performance.now(), last: performance.now(), over: false, timers: [],
   };
   $('goal-text').textContent = ` / ${level.passScore.toLocaleString()}`;
+  FX.setGlyphs(words.slice(0, 60).map(w => w.en));
+  FX.music.setIntensity(0);
+  FX.music.play('game');
   show('game');
   requestAnimationFrame(() => { nextWave(); g.raf = requestAnimationFrame(loop); });
 }
@@ -640,6 +806,8 @@ function loop(now) {
   if (g.phase === 'play') {
     g.time -= dt * drain();
     if (g.time <= 0) { g.time = 0; drawHud(); endGame(); return; }
+    const sec = Math.ceil(g.time);
+    if (g.time <= 5 && sec !== g.lastWarn) { g.lastWarn = sec; FX.sfx.warn(); }
   }
   drawHud();
   g.raf = requestAnimationFrame(loop);
@@ -649,6 +817,7 @@ function drawHud() {
   const r = Math.max(0, g.time / g.maxTime);
   $('fuse-fill').style.width = (r * 100) + '%';
   $('fuse').className = 'fuse' + (r < 0.25 ? ' low' : r < 0.5 ? ' mid' : '');
+  document.body.classList.toggle('danger', r < 0.25 && r > 0 && !g.over);
   $('time').textContent = g.time.toFixed(1);
   $('score').firstChild.nodeValue = g.score.toLocaleString();
   const gr = Math.min(1, g.score / g.level.passScore);
@@ -690,6 +859,8 @@ function nextWave() {
   g.wave++;
   g.sel = null;
   g.phase = 'preview';
+  banner(g.wave === 1 ? 'READY' : `WAVE ${g.wave}`);
+  FX.music.setIntensity(Math.min(1, (g.wave - 1) / 8));
   board.innerHTML = '';
   const words = pickWords(g.words, g.pairs);
   g.cards = [];
@@ -703,7 +874,7 @@ function nextWave() {
       if ((lang === 'en' && text.length > 10) || (lang === 'zh' && text.length > 4)) el.classList.add('long');
       el.textContent = text;
       el.style.setProperty('--tint', tint);
-      const c = { el, wid: w.id, word: w, lang, pairIndex: i, done: false, slot: 0 };
+      const c = { el, wid: w.id, word: w, lang, pairIndex: i, done: false, slot: 0, tint };
       el.addEventListener('click', () => onTap(c));
       g.cards.push(c);
       board.appendChild(el);
@@ -755,6 +926,7 @@ function layoutGrid() {
 function shuffle() {
   if (g.over) return;
   g.phase = 'shuffle';
+  FX.sfx.shuffle();
   $('phase').textContent = '洗牌中…';
   const { W, H } = boardBox();
   const w = W / 3, h = 56;
@@ -770,6 +942,7 @@ function shuffle() {
     later(() => {
       g.phase = 'play';
       g.last = performance.now();
+      if (g.wave === 1) { banner('GO!', 'go'); FX.sfx.go(); }
       $('phase').textContent = '開始配對！';
       $('phase').className = 'phase go';
     }, 300);
@@ -790,7 +963,14 @@ function onTap(c) {
   if (g.sel.lang === c.lang) { deselect(); select(c); return; }
   if (g.sel.wid === c.wid) match(g.sel, c); else miss(g.sel, c);
 }
-function select(c) { g.sel = c; c.el.classList.add('sel'); }
+function banner(text, cls = '') {
+  const b = $('banner');
+  b.textContent = text;
+  b.className = 'banner';
+  void b.offsetWidth;
+  b.className = 'banner show ' + cls;
+}
+function select(c) { g.sel = c; c.el.classList.add('sel'); FX.sfx.tap(); }
 function deselect() { if (g.sel) g.sel.el.classList.remove('sel'); g.sel = null; }
 
 function centerOf(c) { return { x: c.el.offsetLeft + c.el.offsetWidth / 2, y: c.el.offsetTop + c.el.offsetHeight / 2 }; }
@@ -814,6 +994,15 @@ function match(a, b) {
   g.score += pts;
   const p = centerOf(b);
   floatText('+' + pts, 'pts', p.x, p.y);
+  FX.sfx.match(g.combo);
+  FX.burstAtEl(a.el, a.tint, 14);
+  FX.burstAtEl(b.el, b.tint, 14);
+  const sc = $('score'); sc.classList.remove('pop'); void sc.offsetWidth; sc.classList.add('pop');
+  if (g.combo >= 5 && g.combo % 5 === 0) {
+    FX.sfx.milestone(g.combo);
+    FX.ringAtEl(b.el, g.combo >= 15 ? '#ff4fd8' : '#38e8ff');
+    FX.flash(g.combo >= 15 ? '#ff4fd8' : '#38e8ff', 0.16);
+  }
   if (g.combo >= 2) {
     const tb = Math.round(RULES.timeBonus * Math.max(0.4, 1 - 0.06 * (g.wave - 1)) * 10) / 10;
     g.time = Math.min(g.maxTime, g.time + tb);
@@ -827,11 +1016,13 @@ function match(a, b) {
   g.sel = null;
   const ce = $('combo');
   ce.textContent = g.combo >= 2 ? `${g.combo} 連擊` : '';
+  ce.dataset.tier = g.combo >= 15 ? 3 : g.combo >= 10 ? 2 : g.combo >= 5 ? 1 : 0;
   ce.classList.toggle('on', g.combo >= 2);
   ce.classList.remove('bump'); void ce.offsetWidth; if (g.combo >= 2) ce.classList.add('bump');
   speak(a.word.en);
   if (remaining - 1 === 0) {
     g.phase = 'clear';
+    FX.sfx.wave();
     $('phase').textContent = '清空！';
     later(nextWave, 380);
   }
@@ -847,6 +1038,9 @@ function miss(a, b) {
   const p = centerOf(b);
   floatText(`-${g.md.wrongPenalty}s`, 'bad', p.x, p.y);
   for (const c of [a, b]) { c.el.classList.remove('shake'); void c.el.offsetWidth; c.el.classList.add('shake'); }
+  FX.sfx.miss();
+  FX.flash('#ff3b3b', 0.22);
+  const gs = $('s-game'); gs.classList.remove('shake-screen'); void gs.offsetWidth; gs.classList.add('shake-screen');
   try { navigator.vibrate && navigator.vibrate(60); } catch (e) {}
   g.lockUntil = performance.now() + RULES.lockMs;
   later(() => { a.el.classList.remove('shake'); b.el.classList.remove('shake'); deselect(); }, RULES.lockMs);
@@ -866,6 +1060,7 @@ function speak(text) {
 function stopGame() {
   if (!g) return;
   g.over = true;
+  document.body.classList.remove('danger');
   cancelAnimationFrame(g.raf);
   g.timers.forEach(clearTimeout);
   try { speechSynthesis.cancel(); } catch (e) {}
@@ -906,6 +1101,7 @@ function settleLocal(run) {
 async function endGame() {
   if (g.over) return;
   stopGame();
+  FX.music.play('menu');
   const run = {
     runId: uuid(),
     levelId: g.level.id,
@@ -950,7 +1146,20 @@ function showResult(res, run, note) {
   const stamp = $('stamp');
   if (res.pending) { stamp.textContent = '結算中'; stamp.className = 'stamp'; }
   else { stamp.textContent = res.passed ? '過關' : '未達標'; stamp.className = 'stamp ' + (res.passed ? 'pass' : 'fail'); }
-  $('r-score').firstChild.nodeValue = run.score.toLocaleString();
+  const scoreNode = $('r-score').firstChild;
+  if (!g.counted && !REDUCE_MOTION && run.score > 0) {
+    g.counted = true;
+    const t0 = performance.now();
+    (function tick(t) {
+      const k = Math.max(0, Math.min(1, (t - t0) / 900));
+      scoreNode.nodeValue = Math.round(run.score * (1 - Math.pow(1 - k, 3))).toLocaleString();
+      if (k < 1) requestAnimationFrame(tick);
+    })(t0);
+  } else scoreNode.nodeValue = run.score.toLocaleString();
+  if (!res.pending && !g.sounded) {
+    g.sounded = true;
+    if (res.passed) { FX.sfx.win(); FX.confetti(); } else FX.sfx.lose();
+  }
   $('r-goal').textContent = `${lv.name} · 目標 ${lv.passScore.toLocaleString()} 分`;
   const acc = run.correct + run.wrong ? Math.round(run.correct / (run.correct + run.wrong) * 100) : 0;
   const cells = res.pending ? [] : [
