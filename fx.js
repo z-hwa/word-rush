@@ -222,7 +222,10 @@ export const music = {
 let bgEl, bgx, fxEl, fxx, W = 0, H = 0, DPR = 1;
 const orbs = [], glyphs = [], parts = [], rings = [];
 let glyphWords = ['word', 'rush', 'learn', 'quiz', '詞彙', '衝刺', 'ABC', 'vocab'];
-let flashA = 0, flashC = '#ff3b3b', fxDirty = false, lastBg = 0;
+let flashA = 0, flashC = '#ff3b3b', fxDirty = false, lastBg = 0, bgInterval = 40;
+
+/** 遊戲中把背景降到低更新率，把效能留給遊戲本身 */
+export function setBgMode(mode) { bgInterval = mode === 'game' ? 90 : 40; }
 const ORB_COLORS = ['#7c3aed', '#06b6d4', '#ec4899', '#3b82f6', '#f59e0b'];
 
 export function initFx(bg, fx) {
@@ -241,7 +244,7 @@ export function initFx(bg, fx) {
 function resize() {
   W = window.innerWidth;
   H = window.innerHeight;
-  DPR = Math.min(2, window.devicePixelRatio || 1);
+  DPR = Math.min(1.5, window.devicePixelRatio || 1);   // 粒子層不需要視網膜解析度
   fxEl.width = Math.round(W * DPR);
   fxEl.height = Math.round(H * DPR);
   bgEl.width = Math.round(W / 2);     // 背景低解析度即可，節省效能
@@ -405,7 +408,7 @@ function loop(ts) {
   last = ts;
   if (!document.hidden) {
     if (!REDUCE) {
-      if (ts - lastBg > 33) { drawBg((ts - lastBg) / 1000 > 0.2 ? 0.033 : (ts - lastBg) / 1000); lastBg = ts; }
+      if (ts - lastBg > bgInterval) { drawBg(Math.min(0.2, (ts - lastBg) / 1000)); lastBg = ts; }
     } else if (!lastBg) { drawBg(0); lastBg = ts; }
     if (fxDirty) drawFx(dt);
   }

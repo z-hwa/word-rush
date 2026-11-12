@@ -132,7 +132,7 @@ button:focus-visible { outline: 3px solid var(--fuse); outline-offset: 2px; }
   box-shadow: 0 2px 0 rgba(0,0,0,.18), 0 6px 14px rgba(0,0,0,.3);
   display: flex; align-items: center; justify-content: center; text-align: center;
   font-size: 1.05rem; line-height: 1.2; overflow-wrap: anywhere;
-  transition: left .32s cubic-bezier(.3,.8,.3,1), top .32s cubic-bezier(.3,.8,.3,1), width .32s, height .32s, background-color .35s, transform .15s, opacity .25s;
+  transition: translate .32s cubic-bezier(.3,.8,.3,1), width .32s, height .32s, background-color .35s, transform .15s, opacity .25s;
   touch-action: manipulation; user-select: none;
 }
 .card.en { font-family: var(--f-en); font-weight: 700; }
@@ -218,10 +218,10 @@ body.danger::after { /* 時間快沒了：邊緣紅光脈動 */
 @keyframes sheen { to { background-position: 200% 0; } }
 
 .panel, .talent, .coins, .stats div {
-  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  background: rgba(20, 27, 62, .88);   /* 不用 backdrop-filter：背景一直在動，毛玻璃在手機上很吃效能 */
   box-shadow: 0 0 0 1px rgba(255,255,255,.03) inset, 0 10px 30px rgba(0,0,0,.35);
 }
-.stats div { backdrop-filter: none; box-shadow: none; }
+.stats div { box-shadow: none; }
 .panel, .talent { position: relative; }
 .panel::before, .talent::before { /* 漸層邊框 */
   content: ''; position: absolute; inset: -1px; border-radius: inherit; padding: 1px; pointer-events: none;
@@ -232,7 +232,7 @@ body.danger::after { /* 時間快沒了：邊緣紅光脈動 */
 .coins i { animation: coinShine 2.4s ease-in-out infinite; }
 @keyframes coinShine { 50% { box-shadow: inset 0 -2px 0 #c97c12, 0 0 12px 2px rgba(255,179,71,.8); } }
 
-.btn { transition: transform .12s, box-shadow .2s, border-color .2s, filter .2s; backdrop-filter: blur(6px); }
+.btn { transition: transform .12s, box-shadow .2s, border-color .2s, filter .2s; }
 .btn:hover:not(:disabled) { box-shadow: 0 0 16px rgba(56,232,255,.35); border-color: var(--neon-c); transform: translateY(-1px); }
 .btn:active:not(:disabled) { transform: translateY(1px) scale(.97); }
 .btn.primary {
@@ -278,8 +278,15 @@ body.danger::after { /* 時間快沒了：邊緣紅光脈動 */
 
 .card {
   box-shadow: 0 2px 0 rgba(0,0,0,.2), 0 8px 18px rgba(0,0,0,.4), 0 0 0 1px rgba(255,255,255,.35) inset;
-  transition: left .32s cubic-bezier(.3,.8,.3,1), top .32s cubic-bezier(.3,.8,.3,1), width .32s, height .32s,
+  left: 0; top: 0;
+  transition: translate .32s cubic-bezier(.3,.8,.3,1), width .32s, height .32s,
     background-color .35s, transform .15s, opacity .25s, box-shadow .2s, filter .25s;
+}
+/* 配對線索：符號（其他線索由 JS 直接設定底紋、邊框、字體） */
+.card[data-sym] { padding-left: 30px; }
+.card[data-sym]::before {
+  content: attr(data-sym); position: absolute; left: 9px; top: 50%; transform: translateY(-50%);
+  font-size: 1.25rem; line-height: 1; color: var(--symc, #333); font-family: 'Segoe UI Symbol', system-ui, sans-serif;
 }
 .card:hover:not(.gone) { filter: brightness(1.06); }
 .card.sel { box-shadow: 0 0 0 3px var(--neon-c), 0 0 24px 4px rgba(56,232,255,.65), 0 10px 20px rgba(0,0,0,.4); }
@@ -430,8 +437,8 @@ const USE_SERVER = true;
 const CLIENT_VERSION = '0.3.0';
 
 const LEVELS = [
-  { id: 'L01', name: '日常生活', passScore: 1000, next: 'L02' },
-  { id: 'L02', name: '校園', passScore: 1400, next: '' },
+  { id: 'L01', name: '日常生活', passScore: 4000, next: 'L02' },
+  { id: 'L02', name: '校園', passScore: 5000, next: '' },
 ];
 
 // [英文, 中文, 詞性, 近義群組]；同群組或同中文的字不會出現在同一波
@@ -609,6 +616,78 @@ const RULES = {
 };
 const PAIR_TINTS = ['#ffd1dc', '#cfe6ff', '#cdf2dc', '#fff1b8', '#e5d8ff', '#ffdcc4', '#c9f1f1'];
 
+// ── 配對線索：每波隨機換一種（顏色／符號／字體／底紋／邊框），偶爾疊加第二種 ──
+// 洗牌後線索全部消失；只靠記憶配對，避免玩家固定依賴某一種線索。
+const CUE_NAMES = { color: '顏色', symbol: '符號', font: '字體', pattern: '底紋', edge: '邊框' };
+const SYMBOLS = ['★', '●', '▲', '■', '◆', '♥', '☾', '✚', '☀', '✿', '♣', '♠'];
+const SYM_COLORS = ['#d6425d', '#2f7fd1', '#2f9e6e', '#c98a00', '#7a4fd6', '#d9692e', '#1c9aa6'];
+const FONT_CUES = [
+  { ff: "Georgia, 'Times New Roman', serif", fs: 'italic', fw: 700 },
+  { ff: "'Courier New', ui-monospace, monospace", fw: 700 },
+  { ff: "'Brush Script MT', 'Segoe Script', 'Comic Sans MS', cursive", fw: 700 },
+  { ff: "Impact, 'Arial Narrow Bold', sans-serif", ls: '.04em', fw: 400 },
+  { ff: "'Bricolage Grotesque', sans-serif", fw: 800 },
+  { ff: "'Palatino Linotype', Palatino, serif", fw: 800 },
+  { ff: "'Trebuchet MS', sans-serif", fs: 'italic', fw: 700 },
+];
+const PATTERN_CUES = [
+  { img: 'repeating-linear-gradient(45deg, rgba(40,60,120,.24) 0 5px, transparent 5px 10px)', size: 'auto' },
+  { img: 'radial-gradient(rgba(200,60,90,.4) 2px, transparent 2.6px)', size: '10px 10px' },
+  { img: 'linear-gradient(rgba(30,120,90,.28) 1px, transparent 1px), linear-gradient(90deg, rgba(30,120,90,.28) 1px, transparent 1px)', size: '10px 10px' },
+  { img: 'repeating-linear-gradient(0deg, rgba(120,70,200,.28) 0 2px, transparent 2px 7px)', size: 'auto' },
+  { img: 'conic-gradient(rgba(220,140,0,.32) 25%, transparent 0 50%, rgba(220,140,0,.32) 0 75%, transparent 0)', size: '14px 14px' },
+  { img: 'repeating-linear-gradient(135deg, rgba(0,150,170,.28) 0 3px, transparent 3px 9px), repeating-linear-gradient(45deg, rgba(0,150,170,.28) 0 3px, transparent 3px 9px)', size: 'auto' },
+  { img: 'repeating-linear-gradient(90deg, rgba(210,60,60,.3) 0 4px, transparent 4px 9px)', size: 'auto' },
+];
+const EDGE_CUES = [
+  { border: '3px dashed #2f7fd1', radius: '6px' },
+  { border: '3px dotted #d9407a', radius: '6px' },
+  { border: '5px double #2f9e6e', radius: '6px' },
+  { border: '3px solid #e0a000', radius: '18px' },
+  { border: '3px solid #7a4fd6', radius: '0' },
+  { border: '3px solid #1c9aa6', radius: '18px 4px 18px 4px' },
+  { border: '4px ridge #d9692e', radius: '10px' },
+];
+const CUE_PROPS = ['--tint', '--symc', 'background-image', 'background-size', 'background-position', 'background-repeat',
+  'font-family', 'font-style', 'font-weight', 'letter-spacing', 'border', 'border-radius'];
+
+function shuffled(arr) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+  return a;
+}
+/** 回傳這一波要用的線索種類（1～2 種），主線索不與上一波相同 */
+function pickCues(prevMain) {
+  const kinds = Object.keys(CUE_NAMES);
+  const pool = kinds.filter(k => k !== prevMain);
+  const main = pool[Math.floor(Math.random() * pool.length)];
+  const list = [main];
+  if (Math.random() < 0.3) {
+    const rest = kinds.filter(k => k !== main);
+    list.push(rest[Math.floor(Math.random() * rest.length)]);
+  }
+  return list;
+}
+function applyCue(el, kind, k) {
+  const st = el.style;
+  if (kind === 'color') st.setProperty('--tint', PAIR_TINTS[k]);
+  else if (kind === 'symbol') { el.dataset.sym = SYMBOLS[k]; st.setProperty('--symc', SYM_COLORS[k % SYM_COLORS.length]); }
+  else if (kind === 'font') {
+    const f = FONT_CUES[k];
+    st.fontFamily = f.ff; st.fontStyle = f.fs || 'normal'; st.fontWeight = f.fw; if (f.ls) st.letterSpacing = f.ls;
+  } else if (kind === 'pattern') {
+    const p = PATTERN_CUES[k];
+    st.backgroundImage = p.img; st.backgroundSize = p.size; st.backgroundPosition = '0 0'; st.backgroundRepeat = 'repeat';
+  } else if (kind === 'edge') {
+    const e = EDGE_CUES[k];
+    st.border = e.border; st.borderRadius = e.radius;
+  }
+}
+function clearCues(el) {
+  for (const p of CUE_PROPS) el.style.removeProperty(p);
+  delete el.dataset.sym;
+}
+
 // ═══════════════════════════ 存檔 ═══════════════════════════
 const SAVE_KEY = 'wordrush_save_v1';
 const blankSave = () => ({ coins: 0, unlocked: ['L01'], talents: {}, levels: {}, words: {}, sound: true, sfx: true, music: true, tier: 'auto' });
@@ -661,8 +740,10 @@ function show(name) {
 function setCoins() { for (const id of ['coins', 'coins2', 'coins3']) $(id).textContent = save.coins.toLocaleString(); }
 
 // ═══════════════════════════ 首頁 ═══════════════════════════
+let preloaded = false;
 function renderHome() {
   setCoins();
+  if (!preloaded) { preloaded = true; for (const lv of levels) getVocab(lv.id).catch(() => {}); }   // 先把題庫抓好，開始遊戲不用等
   const box = $('levels');
   box.innerHTML = '';
   for (const lv of levels) {
@@ -704,7 +785,7 @@ function renderHome() {
   $('music').textContent = save.music ? '音樂：開' : '音樂：關';
   $('reset').hidden = USE_SERVER;
   $('reset-confirm').hidden = true;
-  FX.music.play('menu');
+  FX.music.play('menu'); FX.setBgMode('menu');
   show('home');
 }
 $('sound').addEventListener('click', () => { save.sound = !save.sound; persist(); renderHome(); });
@@ -791,6 +872,7 @@ async function startGame(levelId) {
   FX.setGlyphs(words.slice(0, 60).map(w => w.en));
   FX.music.setIntensity(0);
   FX.music.play('game');
+  FX.setBgMode('game');
   show('game');
   requestAnimationFrame(() => { nextWave(); g.raf = requestAnimationFrame(loop); });
 }
@@ -813,17 +895,27 @@ function loop(now) {
   g.raf = requestAnimationFrame(loop);
 }
 
+const hudEl = {};
 function drawHud() {
+  if (!hudEl.fill) {
+    for (const id of ['fuse', 'fuse-fill', 'time', 'score', 'goal-fill', 'goalbar', 'wave']) hudEl[id.replace('-', '_')] = $(id);
+    hudEl.fill = hudEl.fuse_fill;
+  }
+  const h = g.hud || (g.hud = {});
   const r = Math.max(0, g.time / g.maxTime);
-  $('fuse-fill').style.width = (r * 100) + '%';
-  $('fuse').className = 'fuse' + (r < 0.25 ? ' low' : r < 0.5 ? ' mid' : '');
-  document.body.classList.toggle('danger', r < 0.25 && r > 0 && !g.over);
-  $('time').textContent = g.time.toFixed(1);
-  $('score').firstChild.nodeValue = g.score.toLocaleString();
-  const gr = Math.min(1, g.score / g.level.passScore);
-  $('goal-fill').style.width = (gr * 100) + '%';
-  $('goalbar').classList.toggle('met', gr >= 1);
-  $('wave').textContent = `第 ${g.wave} 波 · ${g.pairs} 對`;
+  const w = Math.round(r * 1000);
+  if (w !== h.w) { h.w = w; hudEl.fill.style.width = (w / 10) + '%'; }
+  const cls = 'fuse' + (r < 0.25 ? ' low' : r < 0.5 ? ' mid' : '');
+  if (cls !== h.cls) { h.cls = cls; hudEl.fuse.className = cls; }
+  const danger = r < 0.25 && r > 0 && !g.over;
+  if (danger !== h.danger) { h.danger = danger; document.body.classList.toggle('danger', danger); }
+  const t = g.time.toFixed(1);
+  if (t !== h.t) { h.t = t; hudEl.time.textContent = t; }
+  if (g.score !== h.score) { h.score = g.score; hudEl.score.firstChild.nodeValue = g.score.toLocaleString(); }
+  const gr = Math.round(Math.min(1, g.score / g.level.passScore) * 500);
+  if (gr !== h.gr) { h.gr = gr; hudEl.goal_fill.style.width = (gr / 5) + '%'; hudEl.goalbar.classList.toggle('met', gr >= 500); }
+  const wv = `第 ${g.wave} 波 · ${g.pairs} 對`;
+  if (wv !== h.wv) { h.wv = wv; hudEl.wave.textContent = wv; }
 }
 
 // ── 出題：錯過的字、沒見過的字優先；同一波不重複中文、不放近義詞 ──
@@ -864,8 +956,11 @@ function nextWave() {
   board.innerHTML = '';
   const words = pickWords(g.words, g.pairs);
   g.cards = [];
+  const cues = pickCues(g.lastCue);
+  g.lastCue = cues[0];
+  const order = shuffled([0, 1, 2, 3, 4, 5, 6]);   // 每波的線索配給也重新洗過
   words.forEach((w, i) => {
-    const tint = PAIR_TINTS[i % PAIR_TINTS.length];
+    const tint = PAIR_TINTS[order[i]];
     for (const lang of ['en', 'zh']) {
       const el = document.createElement('button');
       el.type = 'button';
@@ -873,7 +968,8 @@ function nextWave() {
       const text = lang === 'en' ? w.en : w.zh;
       if ((lang === 'en' && text.length > 10) || (lang === 'zh' && text.length > 4)) el.classList.add('long');
       el.textContent = text;
-      el.style.setProperty('--tint', tint);
+      el.classList.add('neutral');
+      for (const kind of cues) applyCue(el, kind, order[i]);
       const c = { el, wid: w.id, word: w, lang, pairIndex: i, done: false, slot: 0, tint };
       el.addEventListener('click', () => onTap(c));
       g.cards.push(c);
@@ -882,7 +978,7 @@ function nextWave() {
   });
   layoutPreview(false);
   const ms = (Math.max(2, 0.45 * g.pairs) + g.md.previewBonus) * 1000;
-  $('phase').textContent = '記住配對';
+  $('phase').textContent = `記住配對（${cues.map(k => CUE_NAMES[k]).join('＋')}）`;
   $('phase').className = 'phase';
   const pf = $('preview-fill');
   pf.style.transition = 'none'; pf.style.width = '100%';
@@ -892,7 +988,11 @@ function nextWave() {
 }
 
 function boardBox() { return { W: board.clientWidth, H: board.clientHeight }; }
-function place(el, x, y, w, h) { el.style.left = x + 'px'; el.style.top = y + 'px'; el.style.width = w + 'px'; el.style.height = h + 'px'; }
+function place(el, x, y, w, h) {
+  el._p = { x, y, w, h };
+  el.style.translate = `${x}px ${y}px`;   // 用 translate 位移（GPU 合成），不觸發版面重排
+  el.style.width = w + 'px'; el.style.height = h + 'px';
+}
 
 function layoutPreview() {
   const { W, H } = boardBox();
@@ -931,7 +1031,7 @@ function shuffle() {
   const { W, H } = boardBox();
   const w = W / 3, h = 56;
   for (const c of g.cards) {
-    c.el.classList.add('neutral');
+    clearCues(c.el);
     place(c.el, W / 2 - w / 2 + (Math.random() - 0.5) * 30, H / 2 - h / 2 + (Math.random() - 0.5) * 30, w, h);
   }
   const slots = g.cards.map((_, i) => i);
@@ -973,7 +1073,7 @@ function banner(text, cls = '') {
 function select(c) { g.sel = c; c.el.classList.add('sel'); FX.sfx.tap(); }
 function deselect() { if (g.sel) g.sel.el.classList.remove('sel'); g.sel = null; }
 
-function centerOf(c) { return { x: c.el.offsetLeft + c.el.offsetWidth / 2, y: c.el.offsetTop + c.el.offsetHeight / 2 }; }
+function centerOf(c) { const p = c.el._p; return { x: p.x + p.w / 2, y: p.y + p.h / 2 }; }
 function floatText(text, cls, x, y) {
   const f = document.createElement('div');
   f.className = 'float ' + cls;
@@ -995,8 +1095,9 @@ function match(a, b) {
   const p = centerOf(b);
   floatText('+' + pts, 'pts', p.x, p.y);
   FX.sfx.match(g.combo);
-  FX.burstAtEl(a.el, a.tint, 14);
-  FX.burstAtEl(b.el, b.tint, 14);
+  const spark = PAIR_TINTS[Math.floor(Math.random() * PAIR_TINTS.length)];
+  FX.burstAtEl(a.el, spark, 14);
+  FX.burstAtEl(b.el, spark, 14);
   const sc = $('score'); sc.classList.remove('pop'); void sc.offsetWidth; sc.classList.add('pop');
   if (g.combo >= 5 && g.combo % 5 === 0) {
     FX.sfx.milestone(g.combo);
@@ -1100,71 +1201,85 @@ function settleLocal(run) {
 
 async function endGame() {
   if (g.over) return;
+  const gg = g;                 // 上傳期間玩家可能已開始下一局，所以固定住這一局
   stopGame();
-  FX.music.play('menu');
+  FX.music.play('menu'); FX.setBgMode('menu');
   const run = {
     runId: uuid(),
-    levelId: g.level.id,
-    score: Math.round(g.score),
-    correct: g.correct,
-    wrong: g.wrong,
-    maxCombo: g.maxCombo,
-    durationSec: Math.max(1, Math.round((performance.now() - g.t0) / 1000)),
-    words: g.runWords,
+    levelId: gg.level.id,
+    score: Math.round(gg.score),
+    correct: gg.correct,
+    wrong: gg.wrong,
+    maxCombo: gg.maxCombo,
+    durationSec: Math.max(1, Math.round((performance.now() - gg.t0) / 1000)),
+    words: gg.runWords,
     clientVersion: CLIENT_VERSION,
   };
   updateLocalWords(run.words);
+
+  if (!USE_SERVER) {
+    const res = settleLocal(run);
+    persist();
+    showResult(res, run, '', gg);
+    return;
+  }
+
+  // 連線模式：先用本機資料立刻顯示結果，金幣與完成度等伺服器回應後再補上
+  const prevHigh = save.levels[gg.level.id]?.high || 0;
+  showResult({
+    waiting: true, passed: run.score >= gg.level.passScore, coinsEarned: null,
+    mastery: masteryOf(gg.level.id), highScore: Math.max(run.score, prevHigh), newHigh: run.score > prevHigh,
+  }, run, '', gg);
+
   let res, note = '';
-  if (USE_SERVER) {
-    showResult({ pending: true }, run, '上傳成績中…');
-    try {
-      const r = await api.submitRun(run);
-      if (r.queued) {
-        res = { passed: run.score >= g.level.passScore, coinsEarned: null, mastery: masteryOf(g.level.id), highScore: Math.max(run.score, save.levels[g.level.id]?.high || 0) };
-        note = r.reason === 'auth' ? '登入已過期，成績先存在這台裝置，重新整理頁面登入後會自動上傳。' : '目前連不上伺服器，成績先存在這台裝置，下次登入時會自動上傳。';
-      } else if (r.duplicate) {
-        res = { passed: run.score >= g.level.passScore, coinsEarned: 0, mastery: masteryOf(g.level.id), highScore: save.levels[g.level.id]?.high || run.score };
-      } else {
-        applyProfile(r.profile);
-        save.levels[g.level.id] = Object.assign(save.levels[g.level.id] || {}, { high: r.level.highScore, mastery: r.level.masteryPercent });
-        res = { passed: r.passed, coinsEarned: r.coinsEarned, newlyUnlocked: r.newlyUnlocked, mastery: r.level.masteryPercent, highScore: r.level.highScore, newHigh: r.level.newHighScore };
-      }
-    } catch (e) {
-      res = { passed: run.score >= g.level.passScore, coinsEarned: null, mastery: masteryOf(g.level.id), highScore: save.levels[g.level.id]?.high || 0 };
-      note = e.code === 'rejected' ? `這局成績沒有通過伺服器檢查（${e.message}），不會計入。` : `上傳失敗（${e.code || e.message}）。`;
+  try {
+    const r = await api.submitRun(run);
+    if (r.queued) {
+      res = { passed: run.score >= gg.level.passScore, coinsEarned: null, mastery: masteryOf(gg.level.id), highScore: Math.max(run.score, prevHigh) };
+      note = r.reason === 'auth' ? '登入已過期，成績先存在這台裝置，重新整理頁面登入後會自動上傳。' : '目前連不上伺服器，成績先存在這台裝置，下次登入時會自動上傳。';
+    } else if (r.duplicate) {
+      res = { passed: run.score >= gg.level.passScore, coinsEarned: 0, mastery: masteryOf(gg.level.id), highScore: save.levels[gg.level.id]?.high || run.score };
+    } else {
+      applyProfile(r.profile);
+      save.levels[gg.level.id] = Object.assign(save.levels[gg.level.id] || {}, { high: r.level.highScore, mastery: r.level.masteryPercent });
+      res = { passed: r.passed, coinsEarned: r.coinsEarned, newlyUnlocked: r.newlyUnlocked, mastery: r.level.masteryPercent, highScore: r.level.highScore, newHigh: r.level.newHighScore };
     }
-  } else {
-    res = settleLocal(run);
+  } catch (e) {
+    res = { passed: run.score >= gg.level.passScore, coinsEarned: null, mastery: masteryOf(gg.level.id), highScore: prevHigh };
+    note = e.code === 'rejected' ? `這局成績沒有通過伺服器檢查（${e.message}），不會計入。` : `上傳失敗（${e.code || e.message}）。`;
   }
   persist();
-  showResult(res, run, note);
+  setCoins();
+  // 玩家若已離開結果畫面（再玩一次、回關卡），就不要蓋掉現在的畫面
+  if (g === gg && !$('s-result').hidden) showResult(res, run, note, gg);
 }
 
-function showResult(res, run, note) {
+function showResult(res, run, note, gg) {
   setCoins();
-  const lv = g.level;
+  const lv = gg.level;
   const stamp = $('stamp');
-  if (res.pending) { stamp.textContent = '結算中'; stamp.className = 'stamp'; }
-  else { stamp.textContent = res.passed ? '過關' : '未達標'; stamp.className = 'stamp ' + (res.passed ? 'pass' : 'fail'); }
+  stamp.textContent = res.passed ? '過關' : '未達標';
+  stamp.className = 'stamp ' + (res.passed ? 'pass' : 'fail');
   const scoreNode = $('r-score').firstChild;
-  if (!g.counted && !REDUCE_MOTION && run.score > 0) {
-    g.counted = true;
+  if (!gg.counted && !REDUCE_MOTION && run.score > 0) {
+    gg.counted = true;
     const t0 = performance.now();
     (function tick(t) {
       const k = Math.max(0, Math.min(1, (t - t0) / 900));
       scoreNode.nodeValue = Math.round(run.score * (1 - Math.pow(1 - k, 3))).toLocaleString();
       if (k < 1) requestAnimationFrame(tick);
     })(t0);
-  } else scoreNode.nodeValue = run.score.toLocaleString();
-  if (!res.pending && !g.sounded) {
-    g.sounded = true;
+  } else if (gg.counted !== true) scoreNode.nodeValue = run.score.toLocaleString();
+  if (!gg.sounded) {
+    gg.sounded = true;
     if (res.passed) { FX.sfx.win(); FX.confetti(); } else FX.sfx.lose();
   }
   $('r-goal').textContent = `${lv.name} · 目標 ${lv.passScore.toLocaleString()} 分`;
   const acc = run.correct + run.wrong ? Math.round(run.correct / (run.correct + run.wrong) * 100) : 0;
-  const cells = res.pending ? [] : [
-    ['獲得金幣', res.coinsEarned == null ? '—' : '+' + res.coinsEarned],
-    ['完成度', res.mastery + '%'],
+  const wait = res.waiting ? '結算中…' : null;
+  const cells = [
+    ['獲得金幣', wait || (res.coinsEarned == null ? '—' : '+' + res.coinsEarned)],
+    ['完成度', wait || res.mastery + '%'],
     ['最高分', (res.highScore || 0).toLocaleString() + (res.newHigh ? ' 新紀錄' : '')],
     ['最高連擊', run.maxCombo],
     ['答對 / 答錯', `${run.correct} / ${run.wrong}`],
@@ -1175,10 +1290,10 @@ function showResult(res, run, note) {
   if (res.newlyUnlocked) extra.push(`已解鎖 ${res.newlyUnlocked}。`);
   if (note) extra.push(note);
   $('r-note').textContent = extra.join(' ');
-  const missed = [...g.missed.values()];
+  const missed = [...gg.missed.values()];
   $('r-missed-wrap').hidden = !missed.length;
   $('r-missed').innerHTML = missed.map(w => `<span>${esc(w.en)}<em>${esc(w.zh)}</em></span>`).join('');
-  $('again').disabled = $('home').disabled = !!res.pending;
+  $('again').disabled = $('home').disabled = false;
   show('result');
 }
 $('again').addEventListener('click', () => startGame(g.level.id));
