@@ -365,10 +365,6 @@ body.danger::after { /* 時間快沒了：邊緣紅光脈動 */
     </div>
     <div class="err" id="unlock-err"></div>
     <div class="panel">
-      <div class="row" style="justify-content:space-between">
-        <span class="label">配對數（試玩用）</span>
-        <div class="chips" id="tier-chips"></div>
-      </div>
       <p class="note" id="tier-note"></p>
     </div>
     <div class="row">
@@ -472,9 +468,9 @@ const TALENTS = {
   perfect:   { name: '完美主義', desc: '本局沒有答錯時分數大增；一旦答錯，剩餘時間減半（取代一般扣時）', levels: [1.5, 2, 2.5], costs: [200, 400, 700], fmt: v => `無錯誤時分數 ×${v}` },
   rise:      { name: '向上挑戰', desc: '每波多出 N 組配對，同時完成度成長速度提高', levels: [{ n: 1, x: 1.5 }, { n: 2, x: 2 }, { n: 3, x: 3 }], costs: [200, 450, 800],
                fmt: v => `每波 +${v.n} 組配對；完成度成長 ×${v.x}` },
-  master:    { name: '連擊高手', desc: '連擊數不足時不得分也不回時間；達到門檻後得分與回時間大幅加成',
-               levels: [{ n: 2, m: 8, x: 1.5 }, { n: 3, m: 10, x: 2 }, { n: 4, m: 12, x: 3 }], costs: [150, 350, 700],
-               fmt: v => `連擊 <${v.n} 不得分；≥${v.m} 連擊 ×${v.x}` },
+  master:    { name: '連擊高手', desc: '連擊未達門檻時收益只暫存、不入帳；達標後當次與先前暫存的收益全部乘上倍率一次補發，之後每次也都乘上倍率。中途答錯暫存就消失',
+               levels: [{ n: 5, x: 2 }, { n: 5, x: 3 }, { n: 5, x: 4 }], costs: [150, 350, 700],
+               fmt: v => `連擊 ≥${v.n} 起收益 ×${v.x}（含補發先前暫存）` },
 };
 
 const RULES = {
@@ -590,7 +586,7 @@ function masteryOf(levelId) {
 function tierFor(m) { return Math.min(7, 3 + Math.floor(m / 20)); }
 // 每波配對數 = 依完成度（或手動指定）的基本對數 + 向上挑戰天賦的加成，最多 9 對
 function pairCount(m, wordCount, md) {
-  const base = save.tier === 'auto' ? tierFor(m) : Number(save.tier);
+  const base = tierFor(m);   // 配對數一律依完成度自動決定（手動設定已關閉）
   return Math.min(9, base + (md.rise ? md.rise.n : 0), Math.floor((wordCount || 30) / 2));
 }
 // 天賦：已買等級（save.talents）與目前啟用的等級（save.talentSel，未設定 = 啟用已買的最高等級）
@@ -649,20 +645,9 @@ function renderHome() {
     b.addEventListener('click', () => (locked ? askUnlock(lv, cost) : startGame(lv.id)));
     box.appendChild(b);
   }
-  const chips = $('tier-chips');
-  chips.innerHTML = '';
-  for (const t of ['auto', '3', '4', '5', '6', '7']) {
-    const c = document.createElement('button');
-    c.className = 'chip';
-    c.type = 'button';
-    c.textContent = t === 'auto' ? '自動' : `${t} 對`;
-    c.setAttribute('aria-pressed', String(save.tier === t));
-    c.addEventListener('click', () => { save.tier = t; persist(); renderHome(); });
-    chips.appendChild(c);
-  }
   const tn = $('tier-note');
   tn.style.color = '';
-  tn.textContent = '自動：完成度每提高 20%，配對數 +1（0–19% 為 3 對，80% 以上為 7 對）。完成度 70% 以內，洗牌後線索會保留。';
+  tn.textContent = '配對數：完成度每提高 20%，每波 +1 對（0–19% 為 3 對，80% 以上為 7 對）。完成度 70% 以內，洗牌後線索會保留。';
   $('sound').textContent = save.sound ? '語音：開' : '語音：關';
   $('sfx').textContent = save.sfx ? '音效：開' : '音效：關';
   $('music').textContent = save.music ? '音樂：開' : '音樂：關';
@@ -815,7 +800,7 @@ async function startGame(levelId) {
     time: start, maxTime: start,
     score: 0, combo: 0, maxCombo: 0, correct: 0, wrong: 0, wave: 0,
     phase: 'preview', cards: [], sel: null, lockUntil: 0,
-    runWords: {}, missed: new Map(), lastIds: new Set(), shown: new Set(),
+    runWords: {}, missed: new Map(), lastIds: new Set(), shown: new Set(), held: { pts: 0, time: 0 },
     t0: performance.now(), last: performance.now(), over: false, timers: [],
   };
   $('goal-text').textContent = ` / ${level.passScore.toLocaleString()}`;
@@ -1029,7 +1014,7 @@ function updatePerk() {
   let bad = false;
   if (g.md.perfect) { if (g.wrong === 0) parts.push(`完美 ×${g.md.perfect}`); else { parts.push('完美已失效'); bad = true; } }
   const M = g.md.master;
-  if (M) parts.push(g.combo < M.n ? `連擊 ≥${M.n} 才得分` : g.combo >= M.m ? `高手 ×${M.x}` : `再 ${M.m - g.combo} 連擊 ×${M.x}`);
+  if (M) parts.push(g.combo < M.n ? `暫存 ${g.held.pts} 分（連擊 ${g.combo}/${M.n} 補發 ×${M.x}）` : `高手 ×${M.x}`);
   el.textContent = parts.join(' · ');
   el.classList.toggle('bad', bad);
 }
@@ -1064,19 +1049,23 @@ function match(a, b) {
   g.maxCombo = Math.max(g.maxCombo, g.combo);
   const mult = 1 + Math.min(g.combo - 1, RULES.comboCap) * RULES.comboStep;
   let pts = Math.round(RULES.basePoints * mult * (g.combo >= 2 ? g.md.comboMult : 1));
-  // 連擊高手：連擊數不足不得分也不回時間；達到門檻後得分與回時間加成
-  const M = g.md.master;
-  let tbMul = 1, dead = false;
-  if (M) {
-    if (g.combo < M.n) dead = true;
-    else if (g.combo >= M.m) { pts = Math.round(pts * M.x); tbMul = M.x; }
-  }
   // 完美主義：這局還沒答錯時分數加成
   if (g.md.perfect && g.wrong === 0) pts = Math.round(pts * g.md.perfect);
-  if (dead) pts = 0;
+  let tb = g.combo >= 2 ? RULES.timeBonus * Math.max(0.4, 1 - 0.06 * (g.wave - 1)) + g.md.comboHeal : 0;   // 這一對的回補秒數
+  // 連擊高手：連擊 < N → 收益先暫存、不入帳；連擊 ≥ N → 當次 ×X，達標那一次再把先前暫存的收益 ×X 一起補發
+  const M = g.md.master;
+  let heldNow = false, released = 0;
+  if (M) {
+    if (g.combo < M.n) { g.held.pts += pts; g.held.time += tb; heldNow = true; pts = 0; tb = 0; }
+    else {
+      pts = Math.round(pts * M.x); tb *= M.x;
+      if (g.combo === M.n) { released = Math.round(g.held.pts * M.x); pts += released; tb += g.held.time * M.x; g.held = { pts: 0, time: 0 }; }
+    }
+  }
+  tb = Math.round(tb * 10) / 10;
   g.score += pts;
   const p = centerOf(b);
-  floatText(dead ? `連擊 <${M.n} 不得分` : '+' + pts, dead ? 'bad' : 'pts', p.x, p.y);
+  floatText(heldNow ? `暫存 ${g.held.pts}` : '+' + pts + (released ? '（含補發）' : ''), heldNow ? 'bad' : 'pts', p.x, p.y);
   FX.sfx.match(g.combo);
   const spark = PAIR_TINTS[Math.floor(Math.random() * PAIR_TINTS.length)];
   FX.burstAtEl(a.el, spark, 14);
@@ -1087,8 +1076,7 @@ function match(a, b) {
     FX.ringAtEl(b.el, g.combo >= 15 ? '#ff4fd8' : '#38e8ff');
     FX.flash(g.combo >= 15 ? '#ff4fd8' : '#38e8ff', 0.16);
   }
-  if (g.combo >= 2 && !dead) {
-    const tb = Math.round((RULES.timeBonus * Math.max(0.4, 1 - 0.06 * (g.wave - 1)) + g.md.comboHeal) * tbMul * 10) / 10;
+  if (tb > 0) {
     g.time = Math.min(g.maxTime, g.time + tb);
     const q = centerOf(a);
     floatText(`+${tb}s`, 'good', q.x, q.y);
@@ -1124,6 +1112,7 @@ function miss(a, b) {
   rec(a.wid).w++;
   g.missed.set(a.wid, a.word);
   const p = centerOf(b);
+  g.held = { pts: 0, time: 0 };      // 連擊高手：中途答錯，暫存的收益消失
   if (g.md.perfect) {               // 完美主義：答錯 → 剩餘時間減半（取代一般扣時）
     g.time = g.time / 2;
     floatText('時間減半', 'bad', p.x, p.y);
