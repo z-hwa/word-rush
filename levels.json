@@ -1,1 +1,1 @@
-[{"id":"L01","name":"日常生活","passScore":4000,"next":"L02"},{"id":"L02","name":"校園","passScore":5000,"next":""}]
+[{"id":"L01","name":"日常生活","passScore":4000,"next":"L02","lang":"en-US"},{"id":"L02","name":"校園","passScore":5000,"next":"L03","lang":"en-US"},{"id":"L03","name":"德語 A2","passScore":5000,"next":"L04","lang":"de-DE"},{"id":"L04","name":"IELTS 4–5","passScore":5000,"next":"","lang":"en-US"}]

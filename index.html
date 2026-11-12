@@ -354,7 +354,7 @@ body.danger::after { /* 時間快沒了：邊緣紅光脈動 */
         <span class="label">配對數（試玩用）</span>
         <div class="chips" id="tier-chips"></div>
       </div>
-      <p class="note" id="tier-note">自動：依完成度決定，0–30% 為 3 對，31–70% 為 5 對，71% 以上為 7 對。</p>
+      <p class="note" id="tier-note"></p>
     </div>
     <div class="row">
       <button class="btn" id="to-talents" type="button">天賦</button>
@@ -372,7 +372,7 @@ body.danger::after { /* 時間快沒了：邊緣紅光脈動 */
     <div class="panel">
       <span class="label">玩法</span>
       <p class="note">每一波先顯示同色的中英配對，記住後卡片會洗牌、顏色消失。依序點一張英文、一張中文完成配對。答對加分，連擊從第二次起小幅回補時間；答錯扣時間並短暫鎖定。時間歸零時，分數達到關卡目標就過關。</p>
-      <p class="note">完成度：每個字連續答對最多累積 3 次（答錯歸零），累積滿 3 次算熟練。每答對一次完成度就會往上加一點。</p>
+      <p class="note">完成度：每個字連續答對最多累積 3 次（答錯歸零）；如果又答得快，完成度會加得更多。完成度每提高 20%，每波配對數 +1；完成度 70% 以內，洗牌後線索不會消失，超過才需要全靠記憶。</p>
     </div>
   </section>
 
@@ -436,170 +436,13 @@ const REDUCE_MOTION = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const USE_SERVER = true;
 const CLIENT_VERSION = '0.3.0';
 
+// 本機模式用的關卡清單（連線模式以試算表 Levels 為準；改關卡請改 levels.json 再同步）
 const LEVELS = [
-  { id: 'L01', name: '日常生活', passScore: 4000, next: 'L02' },
-  { id: 'L02', name: '校園', passScore: 5000, next: '' },
+  { id: 'L01', name: '日常生活', passScore: 4000, next: 'L02', lang: 'en-US' },
+  { id: 'L02', name: '校園', passScore: 5000, next: 'L03', lang: 'en-US' },
+  { id: 'L03', name: '德語 A2', passScore: 5000, next: 'L04', lang: 'de-DE' },
+  { id: 'L04', name: 'IELTS 4–5', passScore: 5000, next: '', lang: 'en-US' },
 ];
-
-// [英文, 中文, 詞性, 近義群組]；同群組或同中文的字不會出現在同一波
-const RAW = {
-  L01: [
-    ['apple','蘋果','n'],['kitchen','廚房','n'],['borrow','借入','v'],['quiet','安靜的','adj'],
-    ['usually','通常','adv','FREQ_HIGH'],['umbrella','雨傘','n'],['big','大的','adj','SIZE_BIG'],['large','大型的','adj','SIZE_BIG'],
-    ['blanket','毯子','n'],['laundry','待洗衣物','n'],['neighbor','鄰居','n'],['grocery','雜貨','n'],
-    ['breakfast','早餐','n'],['ceiling','天花板','n'],['drawer','抽屜','n'],['mirror','鏡子','n'],
-    ['pillow','枕頭','n'],['recipe','食譜','n'],['towel','毛巾','n'],['wallet','錢包','n'],
-    ['ladder','梯子','n'],['bucket','水桶','n'],['garbage','垃圾','n'],['invite','邀請','v'],
-    ['repair','修理','v'],['lend','借出','v'],['purchase','購買','v'],['comfortable','舒適的','adj'],
-    ['noisy','吵鬧的','adj'],['empty','空的','adj'],['crowded','擁擠的','adj'],['often','經常','adv','FREQ_HIGH'],
-    ['rarely','很少','adv'],['schedule','行程表','n'],['tidy','整潔的','adj'],['sweep','掃地','v'],
-    ['bread','麵包','n'],['milk','牛奶','n'],['cheese','起司','n'],['butter','奶油','n'],
-    ['egg','雞蛋','n'],['rice','米飯','n'],['noodle','麵條','n'],['soup','湯','n'],
-    ['salad','沙拉','n'],['sandwich','三明治','n'],['chicken','雞肉','n'],['beef','牛肉','n'],
-    ['pork','豬肉','n'],['fish','魚','n'],['shrimp','蝦子','n'],['vegetable','蔬菜','n'],
-    ['tomato','番茄','n'],['potato','馬鈴薯','n'],['onion','洋蔥','n'],['carrot','紅蘿蔔','n'],
-    ['garlic','大蒜','n'],['cabbage','高麗菜','n'],['mushroom','蘑菇','n'],['banana','香蕉','n'],
-    ['orange','柳橙','n'],['grape','葡萄','n'],['lemon','檸檬','n'],['strawberry','草莓','n'],
-    ['watermelon','西瓜','n'],['juice','果汁','n'],['coffee','咖啡','n'],['tea','茶','n'],
-    ['sugar','糖','n'],['salt','鹽','n'],['honey','蜂蜜','n'],['cookie','餅乾','n'],
-    ['cake','蛋糕','n'],['chocolate','巧克力','n'],['dessert','甜點','n'],['lunch','午餐','n'],
-    ['sofa','沙發','n'],['bedroom','臥室','n'],['bathroom','浴室','n'],['garden','花園','n'],
-    ['balcony','陽台','n'],['staircase','樓梯','n'],['window','窗戶','n'],['curtain','窗簾','n'],
-    ['carpet','地毯','n'],['lamp','檯燈','n'],['candle','蠟燭','n'],['clock','時鐘','n'],
-    ['shelf','架子','n'],['closet','衣櫃','n'],['mattress','床墊','n'],['fridge','冰箱','n'],
-    ['oven','烤箱','n'],['stove','爐子','n'],['kettle','水壺','n'],['spoon','湯匙','n'],
-    ['fork','叉子','n'],['knife','刀子','n'],['plate','盤子','n'],['bowl','碗','n'],
-    ['bottle','瓶子','n'],['broom','掃把','n'],['soap','肥皂','n'],['toothbrush','牙刷','n'],
-    ['faucet','水龍頭','n'],['key','鑰匙','n'],['jacket','夾克','n'],['sweater','毛衣','n'],
-    ['scarf','圍巾','n'],['glove','手套','n'],['sock','襪子','n'],['boot','靴子','n'],
-    ['hat','帽子','n'],['belt','皮帶','n'],['dress','洋裝','n'],['skirt','裙子','n'],
-    ['shirt','襯衫','n'],['trousers','長褲','n'],['pajamas','睡衣','n'],['uniform','制服','n'],
-    ['pocket','口袋','n'],['glasses','眼鏡','n'],['shoulder','肩膀','n'],['elbow','手肘','n'],
-    ['knee','膝蓋','n'],['finger','手指','n'],['stomach','胃','n'],['throat','喉嚨','n'],
-    ['forehead','額頭','n'],['cheek','臉頰','n'],['neck','脖子','n'],['heart','心臟','n'],
-    ['bone','骨頭','n'],['muscle','肌肉','n'],['skin','皮膚','n'],['tooth','牙齒','n'],
-    ['tongue','舌頭','n'],['headache','頭痛','n'],['fever','發燒','n'],['cough','咳嗽','n'],
-    ['medicine','藥','n'],['pharmacy','藥局','n'],['hospital','醫院','n'],['doctor','醫生','n'],
-    ['nurse','護士','n'],['dentist','牙醫','n'],['injury','傷勢','n'],['bandage','繃帶','n'],
-    ['healthy','健康的','adj'],['exercise','運動','n'],['grandmother','祖母','n'],['grandfather','祖父','n'],
-    ['uncle','叔叔','n'],['aunt','阿姨','n'],['cousin','堂表兄弟姊妹','n'],['husband','丈夫','n'],
-    ['wife','妻子','n'],['baby','嬰兒','n'],['teenager','青少年','n'],['stranger','陌生人','n'],
-    ['guest','客人','n'],['friend','朋友','n'],['relative','親戚','n'],['couple','情侶','n'],
-    ['twin','雙胞胎','n'],['parent','父母','n'],['customer','顧客','n'],['passenger','乘客','n'],
-    ['tourist','觀光客','n'],['farmer','農夫','n'],['driver','司機','n'],['waiter','服務生','n'],
-    ['bridge','橋','n'],['station','車站','n'],['airport','機場','n'],['harbor','港口','n'],
-    ['market','市場','n'],['supermarket','超市','n'],['bank','銀行','n'],['museum','博物館','n'],
-    ['theater','劇院','n'],['park','公園','n'],['zoo','動物園','n'],['restaurant','餐廳','n'],
-    ['hotel','旅館','n'],['temple','廟宇','n'],['factory','工廠','n'],['village','村莊','n'],
-    ['downtown','市中心','n'],['street','街道','n'],['corner','轉角','n'],['sidewalk','人行道','n'],
-    ['traffic','交通','n'],['subway','地鐵','n'],['bus','公車','n'],['bicycle','腳踏車','n'],
-    ['motorcycle','機車','n'],['taxi','計程車','n'],['ticket','車票','n'],['luggage','行李','n'],
-    ['passport','護照','n'],['address','地址','n'],['rainbow','彩虹','n'],['thunder','雷','n'],
-    ['lightning','閃電','n'],['storm','暴風雨','n'],['breeze','微風','n'],['cloud','雲','n'],
-    ['snow','雪','n'],['fog','霧','n'],['shadow','影子','n'],['sunrise','日出','n'],
-    ['sunset','日落','n'],['mountain','山','n'],['river','河流','n'],['lake','湖','n'],
-    ['ocean','海洋','n'],['beach','海灘','n'],['island','島嶼','n'],['forest','森林','n'],
-    ['desert','沙漠','n'],['flower','花','n'],['leaf','葉子','n'],['earthquake','地震','n'],
-    ['puppy','小狗','n'],['kitten','小貓','n'],['rabbit','兔子','n'],['squirrel','松鼠','n'],
-    ['monkey','猴子','n'],['tiger','老虎','n'],['elephant','大象','n'],['dolphin','海豚','n'],
-    ['butterfly','蝴蝶','n'],['mosquito','蚊子','n'],['cheap','便宜的','adj'],['expensive','昂貴的','adj'],
-    ['heavy','沉重的','adj'],['narrow','狹窄的','adj'],['thick','厚的','adj'],['thin','薄的','adj'],
-    ['soft','柔軟的','adj'],['sharp','鋒利的','adj'],['wet','濕的','adj'],['dry','乾燥的','adj'],
-    ['dirty','骯髒的','adj'],['fresh','新鮮的','adj'],['sweet','甜的','adj'],['sour','酸的','adj'],
-    ['bitter','苦的','adj'],['spicy','辣的','adj'],['delicious','美味的','adj'],['hungry','飢餓的','adj'],
-    ['thirsty','口渴的','adj'],['tired','疲倦的','adj'],['angry','生氣的','adj'],['nervous','緊張的','adj'],
-    ['lonely','孤單的','adj'],['polite','有禮貌的','adj'],['rude','無禮的','adj'],['generous','慷慨的','adj'],
-    ['lazy','懶惰的','adj'],['brave','勇敢的','adj'],['shy','害羞的','adj'],['clever','聰明的','adj','SMART'],
-    ['smart','聰穎的','adj','SMART'],['strange','奇怪的','adj'],['convenient','方便的','adj'],['dangerous','危險的','adj'],
-    ['ordinary','普通的','adj'],['huge','巨大的','adj','SIZE_BIG'],['always','總是','adv'],['sometimes','有時候','adv'],
-    ['never','從不','adv'],['suddenly','突然','adv'],['slowly','緩慢地','adv'],['carefully','小心地','adv'],
-    ['finally','最後','adv'],['already','已經','adv'],['nearly','幾乎','adv'],['together','一起','adv'],
-    ['abroad','在國外','adv'],['nearby','在附近','adv'],['wake','醒來','v'],['wash','清洗','v'],
-    ['bake','烘焙','v'],['boil','煮沸','v'],['pour','倒','v'],['stir','攪拌','v'],
-    ['carry','搬運','v'],['lift','舉起','v'],['push','推','v'],['pull','拉','v'],
-    ['throw','丟','v'],['catch','接住','v'],['fold','摺疊','v'],['wipe','擦拭','v'],
-    ['knock','敲','v'],['shout','大喊','v','SHOUT'],['yell','吼叫','v','SHOUT'],['hurry','趕快','v'],
-  ],
-  L02: [
-    ['library','圖書館','n'],['lecture','講座','n'],['semester','學期','n'],['assignment','作業','n'],
-    ['deadline','截止日期','n'],['professor','教授','n'],['classmate','同學','n'],['dormitory','宿舍','n'],
-    ['cafeteria','自助餐廳','n'],['scholarship','獎學金','n'],['graduate','畢業','v'],['register','註冊','v'],
-    ['attend','出席','v'],['absent','缺席的','adj'],['submit','繳交','v'],['review','複習','v'],
-    ['explain','解釋','v'],['discuss','討論','v'],['research','研究','n'],['experiment','實驗','n'],
-    ['laboratory','實驗室','n'],['textbook','課本','n'],['notebook','筆記本','n'],['campus','校園','n'],
-    ['major','主修','n'],['elective','選修課','n'],['tuition','學費','n'],['quiz','小考','n','TEST'],
-    ['exam','考試','n','TEST'],['grade','成績','n'],['presentation','口頭報告','n'],['diploma','畢業證書','n'],
-    ['classroom','教室','n'],['gymnasium','體育館','n'],['auditorium','禮堂','n'],['playground','操場','n'],
-    ['hallway','走廊','n'],['locker','置物櫃','n'],['blackboard','黑板','n'],['whiteboard','白板','n'],
-    ['projector','投影機','n'],['desk','書桌','n'],['backpack','書包','n'],['pencil','鉛筆','n'],
-    ['eraser','橡皮擦','n'],['ruler','尺','n'],['calculator','計算機','n'],['dictionary','字典','n'],
-    ['encyclopedia','百科全書','n'],['bookstore','書店','n'],['stationery','文具','n'],['folder','資料夾','n'],
-    ['binder','活頁夾','n'],['highlighter','螢光筆','n'],['stapler','釘書機','n'],['scissors','剪刀','n'],
-    ['glue','膠水','n'],['globe','地球儀','n'],['microscope','顯微鏡','n'],['telescope','望遠鏡','n'],
-    ['office','辦公室','n'],['principal','校長','n'],['gym','健身房','n'],['kindergarten','幼稚園','n'],
-    ['mathematics','數學','n'],['physics','物理','n'],['chemistry','化學','n'],['biology','生物','n'],
-    ['geography','地理','n'],['history','歷史','n'],['literature','文學','n'],['philosophy','哲學','n'],
-    ['psychology','心理學','n'],['sociology','社會學','n'],['economics','經濟學','n'],['politics','政治學','n'],
-    ['engineering','工程','n'],['architecture','建築學','n'],['law','法律','n'],['accounting','會計','n'],
-    ['statistics','統計學','n'],['algebra','代數','n'],['geometry','幾何','n'],['grammar','文法','n'],
-    ['vocabulary','詞彙','n'],['linguistics','語言學','n'],['anthropology','人類學','n'],['astronomy','天文學','n'],
-    ['geology','地質學','n'],['music','音樂','n'],['painting','繪畫','n'],['drama','戲劇','n'],
-    ['student','學生','n'],['teacher','老師','n'],['instructor','講師','n'],['tutor','家教','n'],
-    ['counselor','輔導員','n'],['librarian','圖書館員','n'],['freshman','大一新生','n'],['sophomore','大二學生','n'],
-    ['junior','大三學生','n'],['senior','大四學生','n'],['undergraduate','大學部學生','n'],['scholar','學者','n'],
-    ['researcher','研究員','n'],['advisor','指導教授','n'],['alumnus','校友','n'],['candidate','候選人','n'],
-    ['applicant','申請人','n'],['volunteer','志工','n'],['roommate','室友','n'],['supervisor','主管','n'],
-    ['intern','實習生','n'],['assistant','助教','n'],['dean','院長','n'],['participant','參加者','n'],
-    ['lesson','課堂','n'],['course','科目','n'],['curriculum','課程綱要','n'],['syllabus','教學大綱','n'],
-    ['timetable','課表','n'],['requirement','必要條件','n'],['credit','學分','n'],['degree','學位','n'],
-    ['bachelor','學士','n'],['doctorate','博士學位','n'],['thesis','論文','n','THESIS'],['dissertation','學位論文','n','THESIS'],
-    ['essay','短文','n'],['report','報告','n'],['paragraph','段落','n'],['sentence','句子','n'],
-    ['conclusion','結論','n'],['introduction','引言','n'],['topic','主題','n'],['subject','學科','n'],
-    ['theory','理論','n'],['hypothesis','假設','n'],['evidence','證據','n'],['argument','論點','n'],
-    ['method','方法','n'],['result','結果','n'],['analysis','分析','n'],['survey','問卷調查','n'],
-    ['interview','訪談','n'],['data','資料','n'],['sample','樣本','n'],['formula','公式','n'],
-    ['equation','方程式','n'],['diagram','圖解','n'],['chart','圖表','n'],['graph','座標圖','n'],
-    ['reference','參考資料','n'],['citation','引用文獻','n'],['bibliography','參考書目','n'],['footnote','註腳','n'],
-    ['abstract','摘要','n'],['chapter','章節','n'],['section','小節','n'],['page','頁','n'],
-    ['title','標題','n'],['author','作者','n'],['publisher','出版商','n'],['journal','期刊','n'],
-    ['article','文章','n'],['newspaper','報紙','n'],['magazine','雜誌','n'],['class','班級','n'],
-    ['seminar','研討會','n'],['workshop','工作坊','n'],['internship','實習','n'],['career','職涯','n'],
-    ['midterm','期中考','n'],['score','分數','n'],['homework','家庭作業','n'],['worksheet','練習單','n'],
-    ['handout','講義','n'],['note','筆記','n'],['memorize','背誦','v'],['revise','修訂','v'],
-    ['practice','練習','n'],['concentrate','專心','v','FOCUS'],['focus','專注','v','FOCUS'],['distract','使分心','v'],
-    ['procrastinate','拖延','v'],['achieve','達成','v'],['improve','改善','v'],['progress','進步','n'],
-    ['effort','努力','n'],['talent','才能','n'],['ability','能力','n'],['skill','技能','n'],
-    ['knowledge','知識','n'],['wisdom','智慧','n'],['intelligence','智力','n'],['memory','記憶','n'],
-    ['attention','注意力','n'],['motivation','動機','n'],['cheat','作弊','v'],['plagiarism','抄襲','n'],
-    ['failure','失敗','n'],['pass','通過','v'],['fail','不及格','v'],['final','期末考','n'],
-    ['honor','榮譽','n'],['award','獎項','n'],['study','研讀','v'],['learn','學習','v'],
-    ['teach','教導','v','TEACH'],['instruct','指導','v','TEACH'],['examine','檢查','v'],['investigate','調查','v'],
-    ['observe','觀察','v'],['measure','測量','v'],['calculate','計算','v'],['compare','比較','v'],
-    ['contrast','對照','v'],['describe','描述','v'],['define','定義','v'],['summarize','總結','v'],
-    ['conclude','作結論','v'],['predict','預測','v'],['estimate','估計','v'],['solve','解決','v'],
-    ['prove','證明','v'],['demonstrate','示範','v'],['illustrate','說明','v'],['interpret','詮釋','v'],
-    ['translate','翻譯','v'],['recite','朗誦','v'],['quote','引述','v','QUOTE'],['cite','援引','v','QUOTE'],
-    ['edit','編輯','v'],['proofread','校對','v'],['publish','出版','v'],['collect','收集','v'],
-    ['organize','組織','v'],['arrange','安排','v'],['participate','參與','v'],['cooperate','合作','v'],
-    ['collaborate','協作','v'],['contribute','貢獻','v'],['apply','申請','v'],['enroll','入學','v'],
-    ['admit','錄取','v'],['require','需要','v'],['recommend','推薦','v'],['suggest','建議','v'],
-    ['encourage','鼓勵','v'],['support','支持','v'],['praise','稱讚','v'],['punish','懲罰','v'],
-    ['analyze','剖析','v'],['develop','發展','v'],['create','創造','v'],['design','設計','v'],
-    ['evaluate','評估','v'],['consult','諮詢','v'],['academic','學術的','adj'],['curious','好奇的','adj'],
-    ['diligent','勤奮的','adj'],['creative','有創意的','adj'],['patient','有耐心的','adj'],['strict','嚴格的','adj'],
-    ['confident','有自信的','adj'],['anxious','焦慮的','adj'],['stressed','壓力大的','adj'],['exhausted','筋疲力盡的','adj'],
-    ['motivated','有動力的','adj'],['capable','有能力的','adj'],['competitive','競爭激烈的','adj'],['mandatory','強制的','adj','REQUIRED'],
-    ['compulsory','義務的','adj','REQUIRED'],['optional','可選擇的','adj'],['available','可取得的','adj'],['complicated','複雜的','adj','COMPLEX'],
-    ['complex','錯綜的','adj','COMPLEX'],['simple','簡單的','adj'],['difficult','困難的','adj'],['obvious','明顯的','adj'],
-    ['accurate','準確的','adj'],['correct','正確的','adj'],['incorrect','不正確的','adj'],['essential','不可或缺的','adj','IMPORTANT'],
-    ['crucial','關鍵的','adj','IMPORTANT'],['important','重要的','adj','IMPORTANT'],['relevant','相關的','adj'],['useful','有用的','adj'],
-    ['practical','實用的','adj'],['theoretical','理論上的','adj'],['actually','實際上','adv'],['mostly','大部分','adv'],
-    ['especially','尤其','adv'],['briefly','簡短地','adv'],['thoroughly','徹底地','adv'],['regularly','定期地','adv'],
-    ['previously','先前','adv'],['currently','目前','adv'],['therefore','因此','adv'],['however','然而','adv'],
-  ],
-};
-const VOCAB = Object.fromEntries(Object.entries(RAW).map(([lid, rows]) => [lid,
-  rows.map((r, i) => ({ id: `${lid}_${String(i + 1).padStart(3, '0')}`, en: r[0], zh: r[1], pos: r[2], syn: r[3] || '' }))]));
 
 // 價格需與 Code.gs 的 TALENTS 一致；效果需與 api.js 的 TALENT_EFFECTS 一致
 const TALENTS = {
@@ -613,6 +456,10 @@ const RULES = {
   startTime: 20, wrongPenalty: 3, basePoints: 100, comboStep: 0.05, comboCap: 20,
   timeBonus: 0.3, lockMs: 300, masteryStreak: 3,
   coinsPerScore: 100, passBonus: 20, firstClearBonus: 50,
+  // 完成度權重（需與 Code.gs CONFIG 一致）：答對佔 60%、又快又對再佔 40%
+  correctWeight: 0.6, fastWeight: 0.4, fastStreak: 3,
+  // 「快」的門檻：每個配對從上一次配對成功（或本波開始）算起，≤ fastBase + fastPerPair × 對數 秒
+  fastBase: 1.6, fastPerPair: 0.25,
 };
 const PAIR_TINTS = ['#ffd1dc', '#cfe6ff', '#cdf2dc', '#fff1b8', '#e5d8ff', '#ffdcc4', '#c9f1f1'];
 
@@ -704,22 +551,34 @@ const vocabCache = {};
 
 async function getVocab(levelId) {
   if (vocabCache[levelId]) return vocabCache[levelId];
-  const list = USE_SERVER ? await api.loadVocab(levelId) : VOCAB[levelId];
+  let list;
+  if (USE_SERVER) list = await api.loadVocab(levelId);
+  else {
+    const res = await fetch(`./vocab/level_${levelId}.json`);
+    if (!res.ok) throw new Error('vocab');
+    list = await res.json();
+  }
   vocabCache[levelId] = list;
   return list;
 }
 
+function wordCredit(st) {
+  if (!st) return 0;
+  return RULES.correctWeight * Math.min(st.s || 0, RULES.masteryStreak) / RULES.masteryStreak
+       + RULES.fastWeight * Math.min(st.f || 0, RULES.fastStreak) / RULES.fastStreak;
+}
 function localMastery(levelId, list) {
   if (!list || !list.length) return 0;
-  // 學習進度：每個字的連續答對次數（上限 masteryStreak）加總，滿格才算 100%
-  const sum = list.reduce((a, w) => a + Math.min(save.words[w.id]?.s || 0, RULES.masteryStreak), 0);
-  return Math.round(sum / (list.length * RULES.masteryStreak) * 1000) / 10;
+  // 完成度 = 每個字（答對進度 60% + 又快又對進度 40%）的平均
+  const sum = list.reduce((a, w) => a + wordCredit(save.words[w.id]), 0);
+  return Math.round(sum / list.length * 1000) / 10;
 }
 function masteryOf(levelId) {
-  if (USE_SERVER) return save.levels[levelId]?.mastery || 0;
-  return localMastery(levelId, VOCAB[levelId]);
+  if (!USE_SERVER && vocabCache[levelId]) return localMastery(levelId, vocabCache[levelId]);
+  return save.levels[levelId]?.mastery || 0;
 }
-function tierFor(m) { return m <= 30 ? 3 : m <= 70 ? 5 : 7; }
+// 完成度每提高 20%，配對數 +1（3～7 對）
+function tierFor(m) { return Math.min(7, 3 + Math.floor(m / 20)); }
 function mods() {
   const v = (k, base) => { const lv = save.talents[k] || 0; return lv ? TALENTS[k].levels[lv - 1] : base; };
   return { startBonus: v('breath', 0), wrongPenalty: v('calm', RULES.wrongPenalty), comboMult: v('combo', 1), previewBonus: v('slowmo', 0) };
@@ -751,7 +610,7 @@ function renderHome() {
     const m = masteryOf(lv.id);
     const p = save.levels[lv.id] || {};
     const pairs = save.tier === 'auto' ? tierFor(m) : Number(save.tier);
-    const count = !USE_SERVER && VOCAB[lv.id] ? `${VOCAB[lv.id].length} 字 · ` : '';
+    const count = vocabCache[lv.id] ? `${vocabCache[lv.id].length} 字 · ` : '';
     const b = document.createElement('button');
     b.className = 'level';
     b.type = 'button';
@@ -768,7 +627,7 @@ function renderHome() {
   }
   const chips = $('tier-chips');
   chips.innerHTML = '';
-  for (const t of ['auto', '3', '5', '7']) {
+  for (const t of ['auto', '3', '4', '5', '6', '7']) {
     const c = document.createElement('button');
     c.className = 'chip';
     c.type = 'button';
@@ -779,7 +638,7 @@ function renderHome() {
   }
   const tn = $('tier-note');
   tn.style.color = '';
-  tn.textContent = '自動：依完成度決定，0–30% 為 3 對，31–70% 為 5 對，71% 以上為 7 對。';
+  tn.textContent = '自動：完成度每提高 20%，配對數 +1（0–19% 為 3 對，80% 以上為 7 對）。完成度 70% 以內，洗牌後線索會保留。';
   $('sound').textContent = save.sound ? '語音：開' : '語音：關';
   $('sfx').textContent = save.sfx ? '音效：開' : '音效：關';
   $('music').textContent = save.music ? '音樂：開' : '音樂：關';
@@ -862,6 +721,7 @@ async function startGame(levelId) {
   const start = RULES.startTime + md.startBonus;
   g = {
     level, words, pairs, md,
+    keepCues: m <= 70, segStart: 0,
     time: start, maxTime: start,
     score: 0, combo: 0, maxCombo: 0, correct: 0, wrong: 0, wave: 0,
     phase: 'preview', cards: [], sel: null, lockUntil: 0,
@@ -1031,7 +891,7 @@ function shuffle() {
   const { W, H } = boardBox();
   const w = W / 3, h = 56;
   for (const c of g.cards) {
-    clearCues(c.el);
+    if (!g.keepCues) clearCues(c.el);   // 完成度 70% 以內，線索保留到配對結束
     place(c.el, W / 2 - w / 2 + (Math.random() - 0.5) * 30, H / 2 - h / 2 + (Math.random() - 0.5) * 30, w, h);
   }
   const slots = g.cards.map((_, i) => i);
@@ -1042,8 +902,9 @@ function shuffle() {
     later(() => {
       g.phase = 'play';
       g.last = performance.now();
+      g.segStart = g.last;
       if (g.wave === 1) { banner('GO!', 'go'); FX.sfx.go(); }
-      $('phase').textContent = '開始配對！';
+      $('phase').textContent = g.keepCues ? '開始配對！（線索保留中）' : '開始配對！';
       $('phase').className = 'phase go';
     }, 300);
   }, 230);
@@ -1054,7 +915,7 @@ window.addEventListener('resize', () => {
   if (g.phase === 'preview') layoutPreview(); else if (g.phase !== 'shuffle') layoutGrid();
 });
 
-function rec(wid) { return (g.runWords[wid] = g.runWords[wid] || { c: 0, w: 0 }); }
+function rec(wid) { return (g.runWords[wid] = g.runWords[wid] || { c: 0, w: 0, f: 0 }); }
 
 function onTap(c) {
   if (!g || g.over || g.phase !== 'play' || c.done || performance.now() < g.lockUntil) return;
@@ -1086,6 +947,9 @@ function floatText(text, cls, x, y) {
 function match(a, b) {
   const remaining = g.cards.filter(c => !c.done).length / 2;
   const credited = remaining > 1; // 每波最後一對可用排除法，不計入熟練度
+  const now = performance.now();
+  const fast = (now - g.segStart) / 1000 <= RULES.fastBase + RULES.fastPerPair * g.pairs;   // 這一對是否答得夠快
+  g.segStart = now;
   g.correct++;
   g.combo++;
   g.maxCombo = Math.max(g.maxCombo, g.combo);
@@ -1110,7 +974,11 @@ function match(a, b) {
     const q = centerOf(a);
     floatText(`+${tb}s`, 'good', q.x, q.y);
   }
-  if (credited) rec(a.wid).c++;
+  if (credited) {
+    const r = rec(a.wid);
+    r.c++;
+    if (fast) { r.f++; floatText('⚡快', 'good', p.x, p.y - 26); }
+  }
   a.done = b.done = true;
   a.el.classList.add('gone'); b.el.classList.add('gone');
   a.el.classList.remove('sel');
@@ -1120,7 +988,7 @@ function match(a, b) {
   ce.dataset.tier = g.combo >= 15 ? 3 : g.combo >= 10 ? 2 : g.combo >= 5 ? 1 : 0;
   ce.classList.toggle('on', g.combo >= 2);
   ce.classList.remove('bump'); void ce.offsetWidth; if (g.combo >= 2) ce.classList.add('bump');
-  speak(a.word.en);
+  speak(a.word.en, g.level.lang);
   if (remaining - 1 === 0) {
     g.phase = 'clear';
     FX.sfx.wave();
@@ -1148,12 +1016,12 @@ function miss(a, b) {
   if (g.time <= 0) { g.time = 0; drawHud(); endGame(); }
 }
 
-function speak(text) {
+function speak(text, lang) {
   if (!save.sound || !('speechSynthesis' in window)) return;
   try {
     speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(text);
-    u.lang = 'en-US'; u.rate = 1.05;
+    u.lang = lang || 'en-US'; u.rate = 1.05;
     speechSynthesis.speak(u);
   } catch (e) {}
 }
@@ -1176,9 +1044,11 @@ function uuid() {
 
 function updateLocalWords(words) {
   for (const [id, r] of Object.entries(words)) {
-    const s = (save.words[id] = save.words[id] || { c: 0, w: 0, s: 0 });
+    const s = (save.words[id] = save.words[id] || { c: 0, w: 0, s: 0, f: 0 });
+    const f = r.f || 0;
     s.c += r.c; s.w += r.w;
     s.s = r.w > 0 ? 0 : s.s + r.c;
+    s.f = (r.w > 0 || f < r.c) ? 0 : (s.f || 0) + f;
   }
 }
 
