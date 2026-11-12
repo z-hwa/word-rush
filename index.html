@@ -1044,6 +1044,7 @@ function match(a, b) {
   const now = performance.now();
   const fast = (now - g.segStart) / 1000 <= RULES.fastBase + RULES.fastPerPair * g.pairs;   // 這一對是否答得夠快
   g.segStart = now;
+  speak(a.word.en, g.level.lang);      // 先發音，再做動畫與特效，避免被拖慢
   g.correct++;
   g.combo++;
   g.maxCombo = Math.max(g.maxCombo, g.combo);
@@ -1096,7 +1097,6 @@ function match(a, b) {
   ce.dataset.tier = g.combo >= 15 ? 3 : g.combo >= 10 ? 2 : g.combo >= 5 ? 1 : 0;
   ce.classList.toggle('on', g.combo >= 2);
   ce.classList.remove('bump'); void ce.offsetWidth; if (g.combo >= 2) ce.classList.add('bump');
-  speak(a.word.en, g.level.lang);
   if (remaining - 1 === 0) {
     g.phase = 'clear';
     FX.sfx.wave();
@@ -1131,13 +1131,40 @@ function miss(a, b) {
   if (g.time <= 0) { g.time = 0; drawHud(); endGame(); }
 }
 
-function speak(text, lang) {
+// 語音：預先暖機、固定使用本機語音（雲端語音要連線，延遲高），只在正在播放時才取消
+let voiceCache = {};
+if ('speechSynthesis' in window) {
+  try { speechSynthesis.addEventListener('voiceschanged', () => { voiceCache = {}; }); speechSynthesis.getVoices(); } catch (e) {}
+}
+function pickVoice(lang) {
+  if (voiceCache[lang] !== undefined) return voiceCache[lang];
+  let vs = [];
+  try { vs = speechSynthesis.getVoices(); } catch (e) {}
+  if (!vs.length) return null;                     // 語音清單還沒載入完，先不快取
+  const norm = v => v.lang.toLowerCase().replace('_', '-');
+  const want = lang.toLowerCase();
+  const sameLang = vs.filter(v => norm(v).startsWith(want.slice(0, 2)));
+  const exact = sameLang.filter(v => norm(v) === want);
+  const pool = exact.length ? exact : sameLang;
+  return (voiceCache[lang] = pool.find(v => v.localService) || pool[0] || null);
+}
+let speechWarm = false;
+function warmSpeech() {                            // 第一次操作時先播一個無聲的字，讓語音引擎先啟動
+  if (speechWarm || !('speechSynthesis' in window)) return;
+  speechWarm = true;
+  try { const u = new SpeechSynthesisUtterance(' '); u.volume = 0; speechSynthesis.speak(u); } catch (e) {}
+}
+addEventListener('pointerdown', warmSpeech, { once: true, passive: true });
+function speak(text, lang = 'en-US') {
   if (!save.sound || !('speechSynthesis' in window)) return;
   try {
-    speechSynthesis.cancel();
+    const synth = speechSynthesis;
+    if (synth.speaking || synth.pending) synth.cancel();   // 沒在播的時候 cancel 反而會多等一下
     const u = new SpeechSynthesisUtterance(text);
-    u.lang = lang || 'en-US'; u.rate = 1.05;
-    speechSynthesis.speak(u);
+    u.lang = lang; u.rate = 1.1;
+    const v = pickVoice(lang);
+    if (v) u.voice = v;
+    synth.speak(u);
   } catch (e) {}
 }
 
