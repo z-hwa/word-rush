@@ -288,7 +288,7 @@ body.danger::after { /* 時間快沒了：邊緣紅光脈動 */
   content: attr(data-sym); position: absolute; left: 9px; top: 50%; transform: translateY(-50%);
   font-size: 1.25rem; line-height: 1; color: var(--symc, #333); font-family: 'Segoe UI Symbol', system-ui, sans-serif;
 }
-.card:hover:not(.gone) { filter: brightness(1.06); }
+@media (hover: hover) { .card:hover:not(.gone) { filter: brightness(1.06); } }
 .card.sel { box-shadow: 0 0 0 3px var(--neon-c), 0 0 24px 4px rgba(56,232,255,.65), 0 10px 20px rgba(0,0,0,.4); }
 .card.gone { opacity: 0; transform: scale(1.3); filter: brightness(2) blur(2px); }
 .card.shake { box-shadow: 0 0 0 3px var(--bad), 0 0 24px 4px rgba(255,70,70,.7); }
@@ -470,6 +470,8 @@ const TALENTS = {
   comboheal: { name: '連擊回復', desc: '連擊回補的時間增加', levels: [0.2, 0.4, 0.7], costs: [150, 300, 500], fmt: v => `每次 +${v} 秒` },
   newbie:    { name: '未知挑戰者', desc: '沒出現過的單字一律優先出題', levels: [1], costs: [250], fmt: () => '啟用' },
   perfect:   { name: '完美主義', desc: '本局沒有答錯時分數大增；一旦答錯，剩餘時間減半（取代一般扣時）', levels: [1.5, 2, 2.5], costs: [200, 400, 700], fmt: v => `無錯誤時分數 ×${v}` },
+  rise:      { name: '向上挑戰', desc: '每波多出 N 組配對，同時完成度成長速度提高', levels: [{ n: 1, x: 1.5 }, { n: 2, x: 2 }, { n: 3, x: 3 }], costs: [200, 450, 800],
+               fmt: v => `每波 +${v.n} 組配對；完成度成長 ×${v.x}` },
   master:    { name: '連擊高手', desc: '連擊數不足時不得分也不回時間；達到門檻後得分與回時間大幅加成',
                levels: [{ n: 2, m: 8, x: 1.5 }, { n: 3, m: 10, x: 2 }, { n: 4, m: 12, x: 3 }], costs: [150, 350, 700],
                fmt: v => `連擊 <${v.n} 不得分；≥${v.m} 連擊 ×${v.x}` },
@@ -489,18 +491,10 @@ const PAIR_TINTS = ['#ffd1dc', '#cfe6ff', '#cdf2dc', '#fff1b8', '#e5d8ff', '#ffd
 
 // ── 配對線索：每波隨機換一種（顏色／符號／字體／底紋／邊框），一波只用一種 ──
 // 洗牌後線索全部消失；只靠記憶配對，避免玩家固定依賴某一種線索。
-const CUE_NAMES = { color: '顏色', symbol: '符號', font: '字體', pattern: '底紋', edge: '邊框' };
+const CUE_NAMES = { color: '卡面顏色', symbol: '符號', textcolor: '字體顏色', pattern: '底紋', edge: '邊框' };
 const SYMBOLS = ['★', '●', '▲', '■', '◆', '♥', '☾', '✚', '☀', '✿', '♣', '♠'];
 const SYM_COLORS = ['#d6425d', '#2f7fd1', '#2f9e6e', '#c98a00', '#7a4fd6', '#d9692e', '#1c9aa6'];
-const FONT_CUES = [
-  { ff: "Georgia, 'Times New Roman', serif", fs: 'italic', fw: 700 },
-  { ff: "'Courier New', ui-monospace, monospace", fw: 700 },
-  { ff: "'Brush Script MT', 'Segoe Script', 'Comic Sans MS', cursive", fw: 700 },
-  { ff: "Impact, 'Arial Narrow Bold', sans-serif", ls: '.04em', fw: 400 },
-  { ff: "'Bricolage Grotesque', sans-serif", fw: 800 },
-  { ff: "'Palatino Linotype', Palatino, serif", fw: 800 },
-  { ff: "'Trebuchet MS', sans-serif", fs: 'italic', fw: 700 },
-];
+const TEXT_COLORS = ['#d3152b', '#1560d6', '#0c8a4d', '#8a22d6', '#e05a00', '#0a8591', '#a8174f'];   // 在米色卡面上都看得清楚
 const PATTERN_CUES = [
   { img: 'repeating-linear-gradient(45deg, rgba(40,60,120,.24) 0 5px, transparent 5px 10px)', size: 'auto' },
   { img: 'radial-gradient(rgba(200,60,90,.4) 2px, transparent 2.6px)', size: '10px 10px' },
@@ -520,7 +514,7 @@ const EDGE_CUES = [
   { border: '4px ridge #d9692e', radius: '10px' },
 ];
 const CUE_PROPS = ['--tint', '--symc', 'background-image', 'background-size', 'background-position', 'background-repeat',
-  'font-family', 'font-style', 'font-weight', 'letter-spacing', 'border', 'border-radius'];
+  'color', 'border', 'border-radius'];
 
 function shuffled(arr) {
   const a = arr.slice();
@@ -536,10 +530,8 @@ function applyCue(el, kind, k) {
   const st = el.style;
   if (kind === 'color') st.setProperty('--tint', PAIR_TINTS[k]);
   else if (kind === 'symbol') { el.dataset.sym = SYMBOLS[k]; st.setProperty('--symc', SYM_COLORS[k % SYM_COLORS.length]); }
-  else if (kind === 'font') {
-    const f = FONT_CUES[k];
-    st.fontFamily = f.ff; st.fontStyle = f.fs || 'normal'; st.fontWeight = f.fw; if (f.ls) st.letterSpacing = f.ls;
-  } else if (kind === 'pattern') {
+  else if (kind === 'textcolor') st.color = TEXT_COLORS[k];
+  else if (kind === 'pattern') {
     const p = PATTERN_CUES[k];
     st.backgroundImage = p.img; st.backgroundSize = p.size; st.backgroundPosition = '0 0'; st.backgroundRepeat = 'repeat';
   } else if (kind === 'edge') {
@@ -596,6 +588,11 @@ function masteryOf(levelId) {
 }
 // 完成度每提高 20%，配對數 +1（3～7 對）
 function tierFor(m) { return Math.min(7, 3 + Math.floor(m / 20)); }
+// 每波配對數 = 依完成度（或手動指定）的基本對數 + 向上挑戰天賦的加成，最多 9 對
+function pairCount(m, wordCount, md) {
+  const base = save.tier === 'auto' ? tierFor(m) : Number(save.tier);
+  return Math.min(9, base + (md.rise ? md.rise.n : 0), Math.floor((wordCount || 30) / 2));
+}
 // 天賦：已買等級（save.talents）與目前啟用的等級（save.talentSel，未設定 = 啟用已買的最高等級）
 function activeLv(k) {
   const own = save.talents[k] || 0;
@@ -606,7 +603,7 @@ function mods() {
   const v = (k, base) => { const lv = activeLv(k); return lv ? TALENTS[k].levels[lv - 1] : base; };
   return {
     startBonus: v('breath', 0), wrongPenalty: v('calm', RULES.wrongPenalty), comboMult: v('combo', 1), previewBonus: v('slowmo', 0),
-    comboHeal: v('comboheal', 0), newbie: v('newbie', 0) === 1, perfect: v('perfect', 0), master: v('master', null),
+    comboHeal: v('comboheal', 0), newbie: v('newbie', 0) === 1, perfect: v('perfect', 0), master: v('master', null), rise: v('rise', null),
   };
 }
 
@@ -635,7 +632,7 @@ function renderHome() {
     const locked = !save.unlocked.includes(lv.id);
     const m = masteryOf(lv.id);
     const p = save.levels[lv.id] || {};
-    const pairs = save.tier === 'auto' ? tierFor(m) : Number(save.tier);
+    const pairs = pairCount(m, vocabCache[lv.id]?.length, mods());
     const count = vocabCache[lv.id] ? `${vocabCache[lv.id].length} 字 · ` : '';
     const b = document.createElement('button');
     b.className = 'level';
@@ -809,8 +806,8 @@ async function startGame(levelId) {
   try { words = await getVocab(levelId); }
   catch (e) { alertHome(`找不到 ${levelId} 的題庫檔。請確認 vocab/level_${levelId}.json 已上傳。`); return; }
   const m = masteryOf(levelId);
-  const pairs = Math.min(save.tier === 'auto' ? tierFor(m) : Number(save.tier), Math.floor(words.length / 2));
   const md = mods();
+  const pairs = pairCount(m, words.length, md);
   const start = RULES.startTime + md.startBonus;
   g = {
     level, words, pairs, md,
@@ -930,7 +927,9 @@ function nextWave() {
       el.classList.add('neutral');
       for (const kind of cues) applyCue(el, kind, order[i]);
       const c = { el, wid: w.id, word: w, lang, pairIndex: i, done: false, slot: 0, tint };
-      el.addEventListener('click', () => onTap(c));
+      // 按下去就反應（不等手指放開），手指稍微滑動也不會漏掉；click 只留給鍵盤操作
+      el.addEventListener('pointerdown', e => { if (e.pointerType === 'mouse' && e.button !== 0) return; onTap(c); });
+      el.addEventListener('click', e => { if (e.detail === 0) onTap(c); });
       g.cards.push(c);
       board.appendChild(el);
     }
@@ -1169,13 +1168,13 @@ function uuid() {
   return 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2);
 }
 
-function updateLocalWords(words) {
+function updateLocalWords(words, boost = 1) {
   for (const [id, r] of Object.entries(words)) {
     const s = (save.words[id] = save.words[id] || { c: 0, w: 0, s: 0, f: 0 });
     const f = r.f || 0;
     s.c += r.c; s.w += r.w;
-    s.s = r.w > 0 ? 0 : s.s + r.c;
-    s.f = (r.w > 0 || f < r.c) ? 0 : (s.f || 0) + f;
+    s.s = r.w > 0 ? 0 : s.s + Math.ceil(r.c * boost);
+    s.f = (r.w > 0 || f < r.c) ? 0 : (s.f || 0) + Math.ceil(f * boost);
   }
 }
 
@@ -1211,7 +1210,7 @@ async function endGame() {
     words: gg.runWords,
     clientVersion: CLIENT_VERSION,
   };
-  updateLocalWords(run.words);
+  updateLocalWords(run.words, gg.md.rise ? gg.md.rise.x : 1);
 
   if (!USE_SERVER) {
     const res = settleLocal(run);
@@ -1309,7 +1308,11 @@ async function bootServer() {
   show('login');
   try {
     api = await import('./api.js');
-    await new Promise((ok, fail) => {
+    let data = null;
+    $('login-err').textContent = '登入中…';
+    data = await api.restore();          // 之前登入過就直接進去，不必再按 Google 登入
+    $('login-err').textContent = '';
+    if (!data) await new Promise((ok, fail) => {
       const t0 = Date.now();
       (function wait() {
         if (window.google && google.accounts && google.accounts.id) return ok();
@@ -1317,7 +1320,7 @@ async function bootServer() {
         setTimeout(wait, 100);
       })();
     });
-    const data = await api.login($('gbtn'));
+    if (!data) data = await api.login($('gbtn'));
     applyProfile(data.profile);
     levels = data.levels;
     // 伺服器的單字紀錄是準的（跨裝置一致）：用來出題（錯題優先、未知挑戰者）

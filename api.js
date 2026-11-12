@@ -52,6 +52,28 @@ export class ApiError extends Error {
 
 let idToken = null;
 
+// 登入狀態：Google 登入成功後，伺服器會發一個 30 天的 session，存在這台裝置。
+// 重新整理頁面時直接用 session 登入，不必再按 Google 登入（Google 的 id token 只有 1 小時）。
+const SESSION_KEY = 'wr_session';
+let session = readSession();
+function readSession() { try { return localStorage.getItem(SESSION_KEY) || null; } catch { return null; } }
+function storeSession(v) {
+  session = v || null;
+  try { if (v) localStorage.setItem(SESSION_KEY, v); else localStorage.removeItem(SESSION_KEY); } catch { /* 無痕模式等 */ }
+}
+
+/** 重新整理頁面時呼叫：有存過 session 就直接登入，成功回傳 { profile, levels, ... }，否則回傳 null（改走 Google 登入） */
+export async function restore() {
+  if (!session) return null;
+  try {
+    const data = await call('login');
+    await flushPending();
+    return data;
+  } catch (e) {
+    return null;     // session 過期、被拒或沒網路：改走 Google 登入（網路問題時 session 會保留）
+  }
+}
+
 /**
  * 顯示 Google 登入按鈕，登入成功後回傳 { profile, levels, progress }。
  * id token 約 1 小時過期；過期時 API 會丟 ApiError('auth')，再呼叫一次 login() 即可。
@@ -63,8 +85,10 @@ export function login(buttonEl) {
       auto_select: true,
       callback: async (resp) => {
         idToken = resp.credential;
+        storeSession(null);          // 新登入：先丟掉舊 session，這次以 Google token 為準
         try {
           const data = await call('login');
+          if (data.session) storeSession(data.session);
           await flushPending();
           resolve(data);
         } catch (e) {
@@ -78,7 +102,7 @@ export function login(buttonEl) {
 }
 
 export function isLoggedIn() {
-  return !!idToken;
+  return !!(idToken || session);
 }
 
 // ───────────────────────── 題庫（靜態 JSON，不經 Apps Script） ─────────────────────────
@@ -181,15 +205,16 @@ export function unlockLevel(levelId) {
 
 // ───────────────────────── 內部 ─────────────────────────
 
-async function call(action, body = {}) {
-  if (!idToken) throw new ApiError('auth', '尚未登入');
+async function call(action, body = {}, retry = true) {
+  if (!idToken && !session) throw new ApiError('auth', '尚未登入');
+  const cred = idToken ? { idToken } : { session };
   let res;
   try {
     res = await fetch(CONFIG.GAS_URL, {
       method: 'POST',
       // text/plain 不會觸發 CORS preflight（Apps Script 不處理 OPTIONS）
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ action, idToken, ...body }),
+      body: JSON.stringify({ action, ...cred, ...body }),
     });
   } catch {
     throw new ApiError('network', '無法連線');
@@ -201,7 +226,11 @@ async function call(action, body = {}) {
     throw new ApiError('network', '伺服器回應格式錯誤');
   }
   if (!data.ok) {
-    if (data.err === 'auth') idToken = null;
+    if (data.err === 'auth') {
+      if (idToken && session && retry) { idToken = null; return call(action, body, false); }   // Google token 過期，改用 session 再試一次
+      idToken = null;
+      storeSession(null);
+    }
     throw new ApiError(data.err, data.msg);
   }
   return data;
