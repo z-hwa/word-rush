@@ -1002,6 +1002,8 @@ function rec(wid) { return (g.runWords[wid] = g.runWords[wid] || { c: 0, w: 0, f
 
 function onTap(c) {
   if (!g || g.over || g.phase !== 'play' || c.done || performance.now() < g.lockUntil) return;
+  // 點到英文卡的當下就發音（不等配對結果），延遲感最小；再點同一張取消選取時不重複唸
+  if (c.lang === 'en' && g.sel !== c) speak(c.word.en, g.level.lang);
   if (!g.sel) { select(c); return; }
   if (g.sel === c) { deselect(); return; }
   if (g.sel.lang === c.lang) { deselect(); select(c); return; }
@@ -1044,7 +1046,6 @@ function match(a, b) {
   const now = performance.now();
   const fast = (now - g.segStart) / 1000 <= RULES.fastBase + RULES.fastPerPair * g.pairs;   // 這一對是否答得夠快
   g.segStart = now;
-  speak(a.word.en, g.level.lang);      // 先發音，再做動畫與特效，避免被拖慢
   g.correct++;
   g.combo++;
   g.maxCombo = Math.max(g.maxCombo, g.combo);
