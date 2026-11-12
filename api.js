@@ -169,6 +169,16 @@ export function upgradeTalent(key) {
   return call('upgradeTalent', { talent: key });
 }
 
+/** 選擇要啟用的天賦等級（0 = 關閉，不能超過已買等級）。回傳 { profile } */
+export function setTalentSel(key, level) {
+  return call('setTalentSel', { talent: key, level });
+}
+
+/** 花金幣解鎖關卡（費用由伺服器決定：已解鎖關卡數 × 50）。回傳 { cost, profile } */
+export function unlockLevel(levelId) {
+  return call('unlockLevel', { levelId });
+}
+
 // ───────────────────────── 內部 ─────────────────────────
 
 async function call(action, body = {}) {

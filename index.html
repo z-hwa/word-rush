@@ -322,6 +322,15 @@ body.danger::after { /* 時間快沒了：邊緣紅光脈動 */
 .stats b { text-shadow: 0 0 12px rgba(56,232,255,.35); }
 .pips i.on { background: linear-gradient(90deg, #ffd166, #ff8a4c); box-shadow: 0 0 8px rgba(255,160,70,.8); }
 
+/* 解鎖提示、天賦等級選擇、特殊效果提示 */
+.level.locked { opacity: .72; filter: grayscale(.45); }
+.level.locked .tier { background: #7a4f00; color: #ffe3a3; }
+.talent .talent-sel { grid-column: 1; }
+.talent .btn { grid-row: 1 / span 4; }
+.chip:disabled { opacity: .35; cursor: not-allowed; }
+.perk { min-height: 1.1em; font-family: var(--f-zh); font-size: .8rem; color: var(--neon-c); text-shadow: 0 0 10px rgba(56,232,255,.5); }
+.perk.bad { color: var(--bad); text-shadow: none; }
+
 @media (prefers-reduced-motion: reduce) {
   .screen, .brand, .coins i, .fuse b::after, .banner.show, .stamp, body.danger::after, #s-game.shake-screen, .score.pop { animation: none; }
   .banner.show { opacity: 1; transform: none; }
@@ -349,6 +358,12 @@ body.danger::after { /* 時間快沒了：邊緣紅光脈動 */
       <div class="coins" title="金幣"><i></i><span id="coins">0</span></div>
     </div>
     <div class="levels" id="levels"></div>
+    <div class="confirm" id="unlock-confirm" hidden>
+      <span class="note" id="unlock-text"></span>
+      <button class="btn primary" id="unlock-yes" type="button">解鎖</button>
+      <button class="btn" id="unlock-no" type="button">取消</button>
+    </div>
+    <div class="err" id="unlock-err"></div>
     <div class="panel">
       <div class="row" style="justify-content:space-between">
         <span class="label">配對數（試玩用）</span>
@@ -373,6 +388,7 @@ body.danger::after { /* 時間快沒了：邊緣紅光脈動 */
       <span class="label">玩法</span>
       <p class="note">每一波先顯示同色的中英配對，記住後卡片會洗牌、顏色消失。依序點一張英文、一張中文完成配對。答對加分，連擊從第二次起小幅回補時間；答錯扣時間並短暫鎖定。時間歸零時，分數達到關卡目標就過關。</p>
       <p class="note">完成度：每個字連續答對最多累積 3 次（答錯歸零）；如果又答得快，完成度會加得更多。完成度每提高 20%，每波配對數 +1；完成度 70% 以內，洗牌後線索不會消失，超過才需要全靠記憶。</p>
+      <p class="note">關卡要用金幣解鎖：第 1 次 50、第 2 次 100、第 3 次 150，以此類推。通關仍會獲得金幣。</p>
     </div>
   </section>
 
@@ -402,6 +418,7 @@ body.danger::after { /* 時間快沒了：邊緣紅光脈動 */
         <span class="phase" id="phase"></span>
         <span class="combo" id="combo"></span>
       </div>
+      <div class="perk" id="perk"></div>
       <div class="preview"><b id="preview-fill"></b></div>
     </div>
     <div class="board" id="board"></div>
@@ -450,6 +467,12 @@ const TALENTS = {
   calm:   { name: '冷靜',     desc: '答錯時扣的時間減少',   levels: [2.5, 2],        costs: [150, 350],      fmt: v => `扣 ${v} 秒` },
   combo:  { name: '熱力連擊', desc: '連擊得分倍率提升',     levels: [1.2, 1.4, 1.6], costs: [120, 300, 600], fmt: v => `×${v}` },
   slowmo: { name: '慢動作',   desc: '每波記憶時間延長',     levels: [0.5],           costs: [200],           fmt: v => `+${v} 秒` },
+  comboheal: { name: '連擊回復', desc: '連擊回補的時間增加', levels: [0.2, 0.4, 0.7], costs: [150, 300, 500], fmt: v => `每次 +${v} 秒` },
+  newbie:    { name: '未知挑戰者', desc: '沒出現過的單字一律優先出題', levels: [1], costs: [250], fmt: () => '啟用' },
+  perfect:   { name: '完美主義', desc: '本局沒有答錯時分數大增；一旦答錯，剩餘時間減半（取代一般扣時）', levels: [1.5, 2, 2.5], costs: [200, 400, 700], fmt: v => `無錯誤時分數 ×${v}` },
+  master:    { name: '連擊高手', desc: '連擊數不足時不得分也不回時間；達到門檻後得分與回時間大幅加成',
+               levels: [{ n: 2, m: 8, x: 1.5 }, { n: 3, m: 10, x: 2 }, { n: 4, m: 12, x: 3 }], costs: [150, 350, 700],
+               fmt: v => `連擊 <${v.n} 不得分；≥${v.m} 連擊 ×${v.x}` },
 };
 
 const RULES = {
@@ -460,10 +483,11 @@ const RULES = {
   correctWeight: 0.6, fastWeight: 0.4, fastStreak: 3,
   // 「快」的門檻：每個配對從上一次配對成功（或本波開始）算起，≤ fastBase + fastPerPair × 對數 秒
   fastBase: 1.6, fastPerPair: 0.25,
+  unlockStep: 50,   // 解鎖關卡花費 = unlockStep × 已解鎖關卡數（與 Code.gs 一致）
 };
 const PAIR_TINTS = ['#ffd1dc', '#cfe6ff', '#cdf2dc', '#fff1b8', '#e5d8ff', '#ffdcc4', '#c9f1f1'];
 
-// ── 配對線索：每波隨機換一種（顏色／符號／字體／底紋／邊框），偶爾疊加第二種 ──
+// ── 配對線索：每波隨機換一種（顏色／符號／字體／底紋／邊框），一波只用一種 ──
 // 洗牌後線索全部消失；只靠記憶配對，避免玩家固定依賴某一種線索。
 const CUE_NAMES = { color: '顏色', symbol: '符號', font: '字體', pattern: '底紋', edge: '邊框' };
 const SYMBOLS = ['★', '●', '▲', '■', '◆', '♥', '☾', '✚', '☀', '✿', '♣', '♠'];
@@ -503,17 +527,10 @@ function shuffled(arr) {
   for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
   return a;
 }
-/** 回傳這一波要用的線索種類（1～2 種），主線索不與上一波相同 */
+/** 回傳這一波要用的線索種類：每波只用一種，且不與上一波相同 */
 function pickCues(prevMain) {
-  const kinds = Object.keys(CUE_NAMES);
-  const pool = kinds.filter(k => k !== prevMain);
-  const main = pool[Math.floor(Math.random() * pool.length)];
-  const list = [main];
-  if (Math.random() < 0.3) {
-    const rest = kinds.filter(k => k !== main);
-    list.push(rest[Math.floor(Math.random() * rest.length)]);
-  }
-  return list;
+  const pool = Object.keys(CUE_NAMES).filter(k => k !== prevMain);
+  return [pool[Math.floor(Math.random() * pool.length)]];
 }
 function applyCue(el, kind, k) {
   const st = el.style;
@@ -537,7 +554,7 @@ function clearCues(el) {
 
 // ═══════════════════════════ 存檔 ═══════════════════════════
 const SAVE_KEY = 'wordrush_save_v1';
-const blankSave = () => ({ coins: 0, unlocked: ['L01'], talents: {}, levels: {}, words: {}, sound: true, sfx: true, music: true, tier: 'auto' });
+const blankSave = () => ({ coins: 0, unlocked: ['L01'], talents: {}, levels: {}, words: {}, talentSel: {}, sound: true, sfx: true, music: true, tier: 'auto' });
 let save = loadSave();
 function loadSave() {
   try { const s = JSON.parse(localStorage.getItem(SAVE_KEY)); if (s) return Object.assign(blankSave(), s); } catch (e) {}
@@ -579,9 +596,18 @@ function masteryOf(levelId) {
 }
 // 完成度每提高 20%，配對數 +1（3～7 對）
 function tierFor(m) { return Math.min(7, 3 + Math.floor(m / 20)); }
+// 天賦：已買等級（save.talents）與目前啟用的等級（save.talentSel，未設定 = 啟用已買的最高等級）
+function activeLv(k) {
+  const own = save.talents[k] || 0;
+  const sel = save.talentSel[k];
+  return sel === undefined ? own : Math.max(0, Math.min(sel, own));
+}
 function mods() {
-  const v = (k, base) => { const lv = save.talents[k] || 0; return lv ? TALENTS[k].levels[lv - 1] : base; };
-  return { startBonus: v('breath', 0), wrongPenalty: v('calm', RULES.wrongPenalty), comboMult: v('combo', 1), previewBonus: v('slowmo', 0) };
+  const v = (k, base) => { const lv = activeLv(k); return lv ? TALENTS[k].levels[lv - 1] : base; };
+  return {
+    startBonus: v('breath', 0), wrongPenalty: v('calm', RULES.wrongPenalty), comboMult: v('combo', 1), previewBonus: v('slowmo', 0),
+    comboHeal: v('comboheal', 0), newbie: v('newbie', 0) === 1, perfect: v('perfect', 0), master: v('master', null),
+  };
 }
 
 // ═══════════════════════════ 畫面切換 ═══════════════════════════
@@ -614,15 +640,16 @@ function renderHome() {
     const b = document.createElement('button');
     b.className = 'level';
     b.type = 'button';
-    b.disabled = locked;
+    const cost = RULES.unlockStep * save.unlocked.length;
+    if (locked) b.classList.add('locked');
     b.innerHTML = `
       <span class="lid">${lv.id}</span>
-      <span class="tier">${locked ? '未解鎖' : pairs + ' 對'}</span>
+      <span class="tier">${locked ? '🔒 ' + cost + ' 金幣' : pairs + ' 對'}</span>
       <span class="lname">${esc(lv.name)}</span>
       <span class="meta">${count}目標 ${lv.passScore.toLocaleString()} 分 · 最高 ${(p.high || 0).toLocaleString()}</span>
       <span class="meta">完成度 ${m}%</span>
       <span class="mbar"><b style="width:${m}%"></b></span>`;
-    b.addEventListener('click', () => startGame(lv.id));
+    b.addEventListener('click', () => (locked ? askUnlock(lv, cost) : startGame(lv.id)));
     box.appendChild(b);
   }
   const chips = $('tier-chips');
@@ -644,9 +671,43 @@ function renderHome() {
   $('music').textContent = save.music ? '音樂：開' : '音樂：關';
   $('reset').hidden = USE_SERVER;
   $('reset-confirm').hidden = true;
+  $('unlock-confirm').hidden = true;
+  $('unlock-err').textContent = '';
   FX.music.play('menu'); FX.setBgMode('menu');
   show('home');
 }
+let pendingUnlock = null;
+function askUnlock(lv, cost) {
+  pendingUnlock = lv;
+  $('unlock-err').textContent = '';
+  $('unlock-text').textContent = `解鎖「${lv.name}」要 ${cost} 金幣（目前 ${save.coins}）。`;
+  $('unlock-yes').disabled = save.coins < cost;
+  $('unlock-confirm').hidden = false;
+}
+$('unlock-no').addEventListener('click', () => { pendingUnlock = null; $('unlock-confirm').hidden = true; });
+$('unlock-yes').addEventListener('click', async () => {
+  const lv = pendingUnlock;
+  if (!lv) return;
+  const btn = $('unlock-yes');
+  btn.disabled = true;
+  try {
+    if (USE_SERVER) {
+      const r = await api.unlockLevel(lv.id);
+      applyProfile(r.profile);
+    } else {
+      const cost = RULES.unlockStep * save.unlocked.length;
+      if (save.coins < cost) throw Object.assign(new Error('coins'), { code: 'not_enough_coins' });
+      save.coins -= cost;
+      save.unlocked.push(lv.id);
+    }
+    persist();
+    FX.sfx.coin();
+    renderHome();
+  } catch (e) {
+    $('unlock-err').textContent = e.code === 'not_enough_coins' ? '金幣不夠。' : `解鎖失敗（${e.code || e.message}），請再試一次。`;
+    btn.disabled = false;
+  }
+});
 $('sound').addEventListener('click', () => { save.sound = !save.sound; persist(); renderHome(); });
 $('sfx').addEventListener('click', () => { save.sfx = !save.sfx; FX.setPrefs({ sfx: save.sfx }); persist(); renderHome(); });
 $('music').addEventListener('click', () => { save.music = !save.music; FX.setPrefs({ music: save.music }); persist(); renderHome(); });
@@ -663,26 +724,57 @@ function renderTalents() {
   const box = $('talent-list');
   box.innerHTML = '';
   for (const [key, t] of Object.entries(TALENTS)) {
-    const lv = save.talents[key] || 0;
-    const maxed = lv >= t.costs.length;
-    const cur = lv ? t.fmt(t.levels[lv - 1]) : '未升級';
-    const nxt = maxed ? '' : ` → 下一級 ${t.fmt(t.levels[lv])}`;
+    const own = save.talents[key] || 0;
+    const act = activeLv(key);
+    const maxed = own >= t.costs.length;
+    const cur = act ? t.fmt(t.levels[act - 1]) : '關閉';
+    const nxt = maxed ? '' : ` → 下一級 ${t.fmt(t.levels[own])}`;
     const div = document.createElement('div');
     div.className = 'talent';
     div.innerHTML = `
       <h3>${t.name}</h3>
       <p>${t.desc}：${cur}${nxt}</p>
-      <div class="pips">${t.costs.map((_, i) => `<i class="${i < lv ? 'on' : ''}"></i>`).join('')}</div>`;
+      <div class="pips">${t.costs.map((_, i) => `<i class="${i < own ? 'on' : ''}"></i>`).join('')}</div>`;
+    const sel = document.createElement('div');
+    sel.className = 'chips talent-sel';
+    for (let i = 0; i <= t.costs.length; i++) {
+      const c = document.createElement('button');
+      c.className = 'chip';
+      c.type = 'button';
+      c.textContent = i === 0 ? '關' : `Lv${i}`;
+      c.disabled = i > own;
+      c.setAttribute('aria-pressed', String(i === act));
+      c.addEventListener('click', () => setTalentSel(key, i));
+      sel.appendChild(c);
+    }
+    div.appendChild(sel);
     const b = document.createElement('button');
     b.className = 'btn primary';
     b.type = 'button';
-    b.textContent = maxed ? '已滿級' : `${t.costs[lv]} 金幣`;
-    b.disabled = maxed || save.coins < t.costs[lv];
+    b.textContent = maxed ? '已滿級' : `${t.costs[own]} 金幣`;
+    b.disabled = maxed || save.coins < t.costs[own];
     b.addEventListener('click', () => buyTalent(key, b));
     div.appendChild(b);
     box.appendChild(div);
   }
   show('talents');
+}
+async function setTalentSel(key, level) {
+  const before = save.talentSel[key];
+  save.talentSel[key] = level;          // 先更新畫面，再通知伺服器
+  persist();
+  renderTalents();
+  if (!USE_SERVER) return;
+  try {
+    const r = await api.setTalentSel(key, level);
+    applyProfile(r.profile);
+    persist();
+  } catch (e) {
+    if (before === undefined) delete save.talentSel[key]; else save.talentSel[key] = before;
+    persist();
+    renderTalents();
+    $('talent-err').textContent = `切換失敗（${e.code || e.message}），請再試一次。`;
+  }
 }
 async function buyTalent(key, btn) {
   const t = TALENTS[key];
@@ -701,6 +793,7 @@ async function buyTalent(key, btn) {
     if (lv >= t.costs.length || save.coins < t.costs[lv]) return;
     save.coins -= t.costs[lv];
     save.talents[key] = lv + 1;
+    save.talentSel[key] = lv + 1;       // 剛升級的等級自動啟用
   }
   persist();
   renderTalents();
@@ -725,7 +818,7 @@ async function startGame(levelId) {
     time: start, maxTime: start,
     score: 0, combo: 0, maxCombo: 0, correct: 0, wrong: 0, wave: 0,
     phase: 'preview', cards: [], sel: null, lockUntil: 0,
-    runWords: {}, missed: new Map(), lastIds: new Set(),
+    runWords: {}, missed: new Map(), lastIds: new Set(), shown: new Set(),
     t0: performance.now(), last: performance.now(), over: false, timers: [],
   };
   $('goal-text').textContent = ` / ${level.passScore.toLocaleString()}`;
@@ -791,8 +884,12 @@ function pickWords(pool, n) {
   const ok = w => !zh.has(w.zh) && !(w.syn && syn.has(w.syn));
   let bag = cands.slice();
   while (picked.length < n && bag.length) {
-    const usable = bag.filter(ok);
+    let usable = bag.filter(ok);
     if (!usable.length) break;
+    if (g.md.newbie) {   // 未知挑戰者：沒出現過的單字一律優先
+      const fresh = usable.filter(w => !save.words[w.id] && !g.shown.has(w.id));
+      if (fresh.length) usable = fresh;
+    }
     const total = usable.reduce((a, w) => a + weight(w), 0);
     let r = Math.random() * total, chosen = usable[usable.length - 1];
     for (const w of usable) { r -= weight(w); if (r <= 0) { chosen = w; break; } }
@@ -803,6 +900,7 @@ function pickWords(pool, n) {
     for (const w of pool) { if (picked.length >= n) break; if (!picked.includes(w) && ok(w)) { picked.push(w); zh.add(w.zh); if (w.syn) syn.add(w.syn); } }
   }
   g.lastIds = new Set(picked.map(w => w.id));
+  for (const w of picked) g.shown.add(w.id);
   return picked;
 }
 
@@ -812,6 +910,7 @@ function nextWave() {
   g.sel = null;
   g.phase = 'preview';
   banner(g.wave === 1 ? 'READY' : `WAVE ${g.wave}`);
+  updatePerk();
   FX.music.setIntensity(Math.min(1, (g.wave - 1) / 8));
   board.innerHTML = '';
   const words = pickWords(g.words, g.pairs);
@@ -924,6 +1023,17 @@ function onTap(c) {
   if (g.sel.lang === c.lang) { deselect(); select(c); return; }
   if (g.sel.wid === c.wid) match(g.sel, c); else miss(g.sel, c);
 }
+// 特殊天賦的即時提示（完美主義是否還在、連擊高手的門檻）
+function updatePerk() {
+  const el = $('perk');
+  const parts = [];
+  let bad = false;
+  if (g.md.perfect) { if (g.wrong === 0) parts.push(`完美 ×${g.md.perfect}`); else { parts.push('完美已失效'); bad = true; } }
+  const M = g.md.master;
+  if (M) parts.push(g.combo < M.n ? `連擊 ≥${M.n} 才得分` : g.combo >= M.m ? `高手 ×${M.x}` : `再 ${M.m - g.combo} 連擊 ×${M.x}`);
+  el.textContent = parts.join(' · ');
+  el.classList.toggle('bad', bad);
+}
 function banner(text, cls = '') {
   const b = $('banner');
   b.textContent = text;
@@ -954,10 +1064,20 @@ function match(a, b) {
   g.combo++;
   g.maxCombo = Math.max(g.maxCombo, g.combo);
   const mult = 1 + Math.min(g.combo - 1, RULES.comboCap) * RULES.comboStep;
-  const pts = Math.round(RULES.basePoints * mult * (g.combo >= 2 ? g.md.comboMult : 1));
+  let pts = Math.round(RULES.basePoints * mult * (g.combo >= 2 ? g.md.comboMult : 1));
+  // 連擊高手：連擊數不足不得分也不回時間；達到門檻後得分與回時間加成
+  const M = g.md.master;
+  let tbMul = 1, dead = false;
+  if (M) {
+    if (g.combo < M.n) dead = true;
+    else if (g.combo >= M.m) { pts = Math.round(pts * M.x); tbMul = M.x; }
+  }
+  // 完美主義：這局還沒答錯時分數加成
+  if (g.md.perfect && g.wrong === 0) pts = Math.round(pts * g.md.perfect);
+  if (dead) pts = 0;
   g.score += pts;
   const p = centerOf(b);
-  floatText('+' + pts, 'pts', p.x, p.y);
+  floatText(dead ? `連擊 <${M.n} 不得分` : '+' + pts, dead ? 'bad' : 'pts', p.x, p.y);
   FX.sfx.match(g.combo);
   const spark = PAIR_TINTS[Math.floor(Math.random() * PAIR_TINTS.length)];
   FX.burstAtEl(a.el, spark, 14);
@@ -968,8 +1088,8 @@ function match(a, b) {
     FX.ringAtEl(b.el, g.combo >= 15 ? '#ff4fd8' : '#38e8ff');
     FX.flash(g.combo >= 15 ? '#ff4fd8' : '#38e8ff', 0.16);
   }
-  if (g.combo >= 2) {
-    const tb = Math.round(RULES.timeBonus * Math.max(0.4, 1 - 0.06 * (g.wave - 1)) * 10) / 10;
+  if (g.combo >= 2 && !dead) {
+    const tb = Math.round((RULES.timeBonus * Math.max(0.4, 1 - 0.06 * (g.wave - 1)) + g.md.comboHeal) * tbMul * 10) / 10;
     g.time = Math.min(g.maxTime, g.time + tb);
     const q = centerOf(a);
     floatText(`+${tb}s`, 'good', q.x, q.y);
@@ -985,6 +1105,7 @@ function match(a, b) {
   g.sel = null;
   const ce = $('combo');
   ce.textContent = g.combo >= 2 ? `${g.combo} 連擊` : '';
+  updatePerk();
   ce.dataset.tier = g.combo >= 15 ? 3 : g.combo >= 10 ? 2 : g.combo >= 5 ? 1 : 0;
   ce.classList.toggle('on', g.combo >= 2);
   ce.classList.remove('bump'); void ce.offsetWidth; if (g.combo >= 2) ce.classList.add('bump');
@@ -1003,9 +1124,15 @@ function miss(a, b) {
   $('combo').classList.remove('on');
   rec(a.wid).w++;
   g.missed.set(a.wid, a.word);
-  g.time -= g.md.wrongPenalty;
   const p = centerOf(b);
-  floatText(`-${g.md.wrongPenalty}s`, 'bad', p.x, p.y);
+  if (g.md.perfect) {               // 完美主義：答錯 → 剩餘時間減半（取代一般扣時）
+    g.time = g.time / 2;
+    floatText('時間減半', 'bad', p.x, p.y);
+  } else {
+    g.time -= g.md.wrongPenalty;
+    floatText(`-${g.md.wrongPenalty}s`, 'bad', p.x, p.y);
+  }
+  updatePerk();
   for (const c of [a, b]) { c.el.classList.remove('shake'); void c.el.offsetWidth; c.el.classList.add('shake'); }
   FX.sfx.miss();
   FX.flash('#ff3b3b', 0.22);
@@ -1062,8 +1189,7 @@ function settleLocal(run) {
   p.clears += passed ? 1 : 0;
   const coins = Math.floor(run.score / RULES.coinsPerScore) + (passed ? RULES.passBonus : 0) + (firstClear ? RULES.firstClearBonus : 0);
   save.coins += coins;
-  let newlyUnlocked = null;
-  if (passed && lv.next && !save.unlocked.includes(lv.next)) { save.unlocked.push(lv.next); newlyUnlocked = lv.next; }
+  const newlyUnlocked = null;   // 關卡改用金幣解鎖，通關不再自動解鎖
   const mastery = localMastery(lv.id, g.words);
   p.mastery = mastery;
   return { passed, coinsEarned: coins, newlyUnlocked, mastery, highScore: p.high, newHigh, firstClear };
@@ -1157,7 +1283,6 @@ function showResult(res, run, note, gg) {
   ];
   $('r-stats').innerHTML = cells.map(([k, v]) => `<div><span class="label">${k}</span><b>${v}</b></div>`).join('');
   const extra = [];
-  if (res.newlyUnlocked) extra.push(`已解鎖 ${res.newlyUnlocked}。`);
   if (note) extra.push(note);
   $('r-note').textContent = extra.join(' ');
   const missed = [...gg.missed.values()];
@@ -1177,6 +1302,7 @@ function applyProfile(p) {
   save.coins = p.coins;
   save.unlocked = p.unlockedLevels;
   save.talents = p.talents;
+  save.talentSel = p.talentSel || {};
 }
 
 async function bootServer() {
@@ -1194,6 +1320,11 @@ async function bootServer() {
     const data = await api.login($('gbtn'));
     applyProfile(data.profile);
     levels = data.levels;
+    // 伺服器的單字紀錄是準的（跨裝置一致）：用來出題（錯題優先、未知挑戰者）
+    if (data.words) {
+      save.words = {};
+      for (const [id, a] of Object.entries(data.words)) save.words[id] = { c: a[0], w: a[1], s: a[2], f: a[3] };
+    }
     for (const pr of data.progress) {
       save.levels[pr.levelId] = Object.assign(save.levels[pr.levelId] || {}, { high: pr.highScore, mastery: pr.masteryPercent, clears: pr.clears });
     }
